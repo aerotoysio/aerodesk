@@ -53,8 +53,10 @@ public sealed class DocumentForgeRetailingService : IRetailingService
     {
         await _client.CreateDatabaseAsync(_client.Descriptor.Database, ct).ConfigureAwait(false);
 
-        var existing = await _client.ExecuteAsync($"SELECT * FROM {FlightsCollection} LIMIT 1", ct).ConfigureAwait(false);
-        if (existing.Documents.Count > 0) return;
+        // Querying a collection that doesn't exist yet is a 400 on DocumentForge,
+        // so probe the collection list instead of SELECTing.
+        var collections = await _client.GetCollectionNamesAsync(ct).ConfigureAwait(false);
+        if (collections.Contains(FlightsCollection, StringComparer.OrdinalIgnoreCase)) return;
 
         foreach (var route in FlightSchedule.Routes)
         {
@@ -76,9 +78,19 @@ public sealed class DocumentForgeRetailingService : IRetailingService
         var perLeg = new List<IReadOnlyList<FlightSegment>>();
         foreach (var leg in request.Legs)
         {
-            var result = await _client.ExecuteAsync(
-                $"SELECT * FROM {FlightsCollection} WHERE origin = '{Sql(leg.Origin.ToUpperInvariant())}' " +
-                $"AND destination = '{Sql(leg.Destination.ToUpperInvariant())}'", ct).ConfigureAwait(false);
+            DfQueryResult result;
+            try
+            {
+                result = await _client.ExecuteAsync(
+                    $"SELECT * FROM {FlightsCollection} WHERE origin = '{Sql(leg.Origin.ToUpperInvariant())}' " +
+                    $"AND destination = '{Sql(leg.Destination.ToUpperInvariant())}'", ct).ConfigureAwait(false);
+            }
+            catch (DfHttpException ex) when (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Database '{_client.Descriptor.Database}' has no flight inventory yet — " +
+                    "right-click the connection and choose 'Seed demo data' first.");
+            }
             perLeg.Add(result.Documents
                 .Select(json => JsonSerializer.Deserialize<FlightSchedule.Route>(json, Wire)!)
                 .Select(route => FlightSchedule.BuildSegment(route, leg.DepartureDate, request.Cabin))

@@ -83,6 +83,8 @@ public sealed class DfHttpClient : IAsyncDisposable
         return names;
     }
 
+    /// <summary>Create (or attach) a database. Idempotent: an already-attached
+    /// database is success, not an error.</summary>
     public async Task CreateDatabaseAsync(string name, CancellationToken ct = default)
     {
         using var response = await _http.PostAsJsonAsync(
@@ -90,7 +92,9 @@ public sealed class DfHttpClient : IAsyncDisposable
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            throw new DfHttpException(response.StatusCode, ExtractError(body, response.StatusCode));
+            var message = ExtractError(body, response.StatusCode);
+            if (message.Contains("already attached", StringComparison.OrdinalIgnoreCase)) return;
+            throw new DfHttpException(response.StatusCode, message);
         }
     }
 
