@@ -21,17 +21,31 @@ public static class OfferFactory
         new("Flex",  1.45m, "2 x 23kg", Changeable: true,  Refundable: true,  "FLX"),
     ];
 
-    /// <summary>
-    /// One offer per (itinerary, fare family). An itinerary is one scheduled
-    /// flight per requested leg, matched by departure order across legs so the
-    /// combinations stay sane (no cartesian explosion).
-    /// </summary>
+    /// <summary>Build offers with flights sourced from the built-in schedule (in-memory service).</summary>
     public static IReadOnlyList<Offer> Build(ShopRequest request, DateTime nowUtc, Func<string> offerIdFactory)
     {
         var perLeg = request.Legs
             .Select(leg => FlightSchedule.FlightsFor(leg.Origin, leg.Destination, leg.DepartureDate, request.Cabin))
             .ToList();
+        return Build(request, perLeg, nowUtc, offerIdFactory);
+    }
+
+    /// <summary>
+    /// One offer per (itinerary, fare family). An itinerary is one scheduled
+    /// flight per requested leg, matched by departure order across legs so the
+    /// combinations stay sane (no cartesian explosion). Flight availability per
+    /// leg is supplied by the caller (schedule or DocumentForge inventory).
+    /// </summary>
+    public static IReadOnlyList<Offer> Build(
+        ShopRequest request,
+        IReadOnlyList<IReadOnlyList<FlightSegment>> perLeg,
+        DateTime nowUtc,
+        Func<string> offerIdFactory)
+    {
         if (perLeg.Any(f => f.Count == 0)) return [];
+
+        // Deterministic itinerary pairing regardless of source ordering (SQL results are unordered).
+        perLeg = perLeg.Select(f => (IReadOnlyList<FlightSegment>)f.OrderBy(s => s.DepartureUtc).ToList()).ToList();
 
         var itineraryCount = Math.Min(perLeg.Min(f => f.Count), MaxItinerariesPerSearch);
         var offers = new List<Offer>();
