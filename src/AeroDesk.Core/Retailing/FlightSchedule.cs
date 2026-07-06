@@ -54,27 +54,29 @@ public static class FlightSchedule
     /// <summary>All scheduled flights from origin to destination departing on the given UTC date.</summary>
     public static IReadOnlyList<FlightSegment> FlightsFor(string origin, string destination, DateOnly date, Cabin cabin)
     {
-        var result = new List<FlightSegment>();
-        foreach (var r in Routes)
-        {
-            if (!r.Origin.Equals(origin, StringComparison.OrdinalIgnoreCase) ||
-                !r.Destination.Equals(destination, StringComparison.OrdinalIgnoreCase))
-                continue;
+        return Routes
+            .Where(r => r.Origin.Equals(origin, StringComparison.OrdinalIgnoreCase) &&
+                        r.Destination.Equals(destination, StringComparison.OrdinalIgnoreCase))
+            .Select(r => BuildSegment(r, date, cabin))
+            .ToList();
+    }
 
-            var dep = date.ToDateTime(new TimeOnly(r.DepartureHourUtc, 0), DateTimeKind.Utc);
-            result.Add(new FlightSegment(
-                SegmentId: $"{r.FlightNumber}-{date:yyyyMMdd}",
-                Carrier: Carrier,
-                FlightNumber: r.FlightNumber,
-                Origin: r.Origin.ToUpperInvariant(),
-                Destination: r.Destination.ToUpperInvariant(),
-                DepartureUtc: dep,
-                ArrivalUtc: dep.AddHours(r.DurationHours),
-                Equipment: r.Equipment,
-                Cabin: cabin,
-                BookingClass: BookingClassFor(cabin)));
-        }
-        return result;
+    /// <summary>Materialise one schedule route into a dated, cabin-priced segment.
+    /// Shared by the in-memory schedule and the DocumentForge flights inventory.</summary>
+    public static FlightSegment BuildSegment(Route r, DateOnly date, Cabin cabin)
+    {
+        var dep = date.ToDateTime(new TimeOnly(r.DepartureHourUtc, 0), DateTimeKind.Utc);
+        return new FlightSegment(
+            SegmentId: $"{r.FlightNumber}-{date:yyyyMMdd}",
+            Carrier: Carrier,
+            FlightNumber: r.FlightNumber,
+            Origin: r.Origin.ToUpperInvariant(),
+            Destination: r.Destination.ToUpperInvariant(),
+            DepartureUtc: dep,
+            ArrivalUtc: dep.AddHours(r.DurationHours),
+            Equipment: r.Equipment,
+            Cabin: cabin,
+            BookingClass: BookingClassFor(cabin));
     }
 
     private static string BookingClassFor(Cabin cabin) => cabin switch

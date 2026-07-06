@@ -76,34 +76,34 @@ public sealed class InMemoryRetailingService : IRetailingService
             if (offer.OfferExpiry.IsExpired(_clock()))
                 throw new InvalidOperationException("The offer has expired — reprice before ordering.");
 
-            ValidatePassengersMatchOffer(offer, passengers);
-
             var now = _clock();
-            var order = new Order
-            {
-                OrderId = $"AT-{now:yyyyMMdd}-{Interlocked.Increment(ref _orderSequence):D5}",
-                RecordLocator = NewRecordLocator(),
-                Owner = offer.Owner,
-                Status = OrderStatus.PendingPayment,
-                Segments = offer.Segments,
-                Items = offer.Items.Select(i => new OrderItem(
-                    OrderItemId: Guid.NewGuid().ToString("N"),
-                    SourceOfferItemId: i.OfferItemId,
-                    PassengerType: i.PassengerType,
-                    PassengerIds: passengers.Where(p => p.Type == i.PassengerType).Select(p => p.PassengerId).ToList(),
-                    SegmentIds: i.SegmentIds,
-                    Fare: i.Fare,
-                    PricePerPassenger: i.PricePerPassenger)).ToList(),
-                Passengers = passengers,
-                TimeLimits = [new TimeLimit(TimeLimit.PaymentDeadline, now.AddHours(24)),
-                              new TimeLimit(TimeLimit.PriceGuarantee, now.AddHours(24))],
-                Currency = offer.Currency,
-                CreatedAtUtc = now,
-            };
+            var order = OrderFactory.Create(offer, passengers,
+                $"AT-{now:yyyyMMdd}-{Interlocked.Increment(ref _orderSequence):D5}", now);
 
             var etag = NewEtag();
             _orders[order.OrderId] = (order, etag);
             return Task.FromResult(new OrderEnvelope(order, etag));
+        }
+    }
+
+    // ---- Seats & extras ----
+
+    public Task<SeatMap> GetSeatMapAsync(FlightSegment segment, CancellationToken ct = default) =>
+        Task.FromResult(SeatMapFactory.Build(segment));
+
+    public Task<IReadOnlyList<AncillaryOption>> GetAncillaryCatalogAsync(FlightSegment segment, CancellationToken ct = default) =>
+        Task.FromResult(SeatMapFactory.Catalog(segment));
+
+    public Task<IReadOnlyList<OrderEnvelope>> ListOrdersAsync(int limit = 25, CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<OrderEnvelope> result = _orders.Values
+                .OrderByDescending(o => o.Order.CreatedAtUtc)
+                .Take(limit)
+                .Select(o => new OrderEnvelope(o.Order, o.Etag))
+                .ToList();
+            return Task.FromResult(result);
         }
     }
 
@@ -153,7 +153,7 @@ public sealed class InMemoryRetailingService : IRetailingService
                 AuthorizedAtUtc: now);
             _payments[pay.PaymentId] = pay;
 
-            var documents = IssueDocuments(order, now);
+            var documents = OrderFactory.IssueDocuments(order, now);
             var paid = order with
             {
                 Status = OrderStatus.Ticketed,
@@ -172,19 +172,7 @@ public sealed class InMemoryRetailingService : IRetailingService
         lock (_gate)
         {
             var order = TakeGuarded(change.OrderId, expectedEtag);
-            if (order.Status == OrderStatus.Cancelled)
-                throw new InvalidOperationException($"Order {change.OrderId} is cancelled.");
-
-            var ancillaries = order.Ancillaries
-                .Where(a => !change.RemoveServiceIds.Contains(a.ServiceId))
-                .Concat(change.AddAncillaries)
-                .ToList();
-            var seats = order.Seats
-                .Where(s => !change.AddSeats.Any(n => n.SegmentId == s.SegmentId && n.PassengerId == s.PassengerId))
-                .Concat(change.AddSeats)
-                .ToList();
-
-            return Task.FromResult(Store(order with { Ancillaries = ancillaries, Seats = seats }));
+            return Task.FromResult(Store(OrderFactory.ApplyChange(order, change)));
         }
     }
 
@@ -224,47 +212,5 @@ public sealed class InMemoryRetailingService : IRetailingService
         return new OrderEnvelope(order, etag);
     }
 
-    private static void ValidatePassengersMatchOffer(Offer offer, IReadOnlyList<Passenger> passengers)
-    {
-        foreach (var item in offer.Items)
-        {
-            var supplied = passengers.Count(p => p.Type == item.PassengerType);
-            if (supplied != item.PassengerCount)
-                throw new ArgumentException(
-                    $"Offer expects {item.PassengerCount} x {item.PassengerType}, got {supplied}.");
-        }
-        foreach (var p in passengers)
-        {
-            if (string.IsNullOrWhiteSpace(p.GivenName) || string.IsNullOrWhiteSpace(p.Surname))
-                throw new ArgumentException($"Passenger '{p.PassengerId}' needs a given name and surname.");
-        }
-    }
-
-    private List<IssuedDocument> IssueDocuments(Order order, DateTime now)
-    {
-        // Simulated accountable documents: one e-ticket per seated passenger.
-        var docs = new List<IssuedDocument>();
-        var serial = Random.Shared.NextInt64(1_000_000_000L, 9_999_999_999L);
-        foreach (var pax in order.Passengers)
-        {
-            docs.Add(new IssuedDocument(
-                DocumentNumber: $"999-{serial++}",
-                Kind: pax.Type == Ptc.INF ? "EMD" : "ETKT",
-                PassengerId: pax.PassengerId,
-                OrderId: order.OrderId,
-                IssuedAtUtc: now));
-        }
-        return docs;
-    }
-
     private static string NewEtag() => Guid.NewGuid().ToString("N");
-
-    private static string NewRecordLocator()
-    {
-        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I/O to avoid 1/0 confusion
-        return string.Create(6, alphabet, static (span, a) =>
-        {
-            for (var i = 0; i < span.Length; i++) span[i] = a[Random.Shared.Next(a.Length)];
-        });
-    }
 }

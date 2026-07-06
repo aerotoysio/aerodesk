@@ -58,6 +58,14 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private Task WorkOfflineAsync() => AttachAsync(new InMemoryRetailingService(), "Offline demo (in-memory)");
 
+    /// <summary>`--offline` startup: attach the in-memory airline and open a sale tab.</summary>
+    public async Task StartOfflineDemoAsync()
+    {
+        await WorkOfflineAsync();
+        if (Connections.OfType<ConnectionNodeViewModel>().LastOrDefault() is { } node)
+            OpenSale(node);
+    }
+
     private async Task AttachAsync(IRetailingService service, string displayName)
     {
         StatusText = $"Connecting to {displayName}…";
@@ -95,6 +103,55 @@ public sealed partial class MainViewModel : ObservableObject
         Connections.Remove(node);
         await node.Service.DisposeAsync();
         StatusText = $"Disconnected from {node.Name}.";
+    }
+
+    public void OpenSale(ConnectionNodeViewModel node)
+    {
+        var sale = new Sale.SaleDocumentViewModel(node.Service, _dialogs);
+        Documents.Add(sale);
+        ActiveDocument = sale;
+    }
+
+    public void OpenOrders(ConnectionNodeViewModel node)
+    {
+        // Reuse an existing Orders tab for this connection if one is open.
+        var existing = Documents.OfType<Orders.OrdersDocumentViewModel>()
+            .FirstOrDefault(d => ReferenceEquals(d.Service, node.Service));
+        if (existing is null)
+        {
+            existing = new Orders.OrdersDocumentViewModel(node.Service, _dialogs,
+                envelope => OpenOrderDetail(node.Service, envelope));
+            Documents.Add(existing);
+        }
+        ActiveDocument = existing;
+    }
+
+    public void OpenOrderDetail(Core.Retailing.IRetailingService service, Core.Retailing.OrderEnvelope envelope)
+    {
+        // One detail tab per order — focus it if already open.
+        var existing = Documents.OfType<Orders.OrderDetailDocumentViewModel>()
+            .FirstOrDefault(d => d.Order?.OrderId == envelope.Order.OrderId);
+        if (existing is null)
+        {
+            existing = new Orders.OrderDetailDocumentViewModel(service, _dialogs, envelope);
+            Documents.Add(existing);
+        }
+        ActiveDocument = existing;
+    }
+
+    public async Task SeedDemoDataAsync(ConnectionNodeViewModel node)
+    {
+        StatusText = "Seeding demo inventory…";
+        try
+        {
+            await node.Service.SeedInventoryAsync();
+            StatusText = $"Demo inventory ready on {node.Name}.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Seeding failed.";
+            _dialogs.ShowError("Seed demo data", ex.Message);
+        }
     }
 
     [RelayCommand]

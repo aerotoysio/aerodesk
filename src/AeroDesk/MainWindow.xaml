@@ -4,6 +4,9 @@
         xmlns:ad="https://github.com/Dirkster99/AvalonDock"
         xmlns:adcontrols="clr-namespace:AvalonDock.Controls;assembly=AvalonDock"
         xmlns:vm="clr-namespace:AeroDesk.ViewModels"
+        xmlns:vmsale="clr-namespace:AeroDesk.ViewModels.Sale"
+        xmlns:vmorders="clr-namespace:AeroDesk.ViewModels.Orders"
+        xmlns:views="clr-namespace:AeroDesk.Views"
         Title="AeroDesk"
         Height="760" Width="1200"
         WindowStartupLocation="CenterScreen">
@@ -14,6 +17,8 @@
             <StackPanel Orientation="Horizontal">
                 <StackPanel.ContextMenu>
                     <ContextMenu>
+                        <MenuItem Header="Seed demo data" Command="{Binding SeedDemoDataCommand}"/>
+                        <Separator/>
                         <MenuItem Header="Disconnect" Command="{Binding DisconnectCommand}"/>
                     </ContextMenu>
                 </StackPanel.ContextMenu>
@@ -22,10 +27,18 @@
             </StackPanel>
         </HierarchicalDataTemplate>
 
-        <HierarchicalDataTemplate DataType="{x:Type vm:PlaceholderNodeViewModel}" ItemsSource="{Binding Children}">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="{Binding Glyph}" Margin="0,0,6,0" Opacity="0.5"/>
-                <TextBlock Text="{Binding Name}" Foreground="#888"/>
+        <HierarchicalDataTemplate DataType="{x:Type vm:ActionNodeViewModel}" ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal" Background="Transparent">
+                <StackPanel.InputBindings>
+                    <MouseBinding MouseAction="LeftDoubleClick" Command="{Binding OpenCommand}"/>
+                </StackPanel.InputBindings>
+                <StackPanel.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Open" Command="{Binding OpenCommand}"/>
+                    </ContextMenu>
+                </StackPanel.ContextMenu>
+                <TextBlock Text="{Binding Glyph}" Margin="0,0,6,0"/>
+                <TextBlock Text="{Binding Name}"/>
             </StackPanel>
         </HierarchicalDataTemplate>
 
@@ -37,6 +50,18 @@
         </HierarchicalDataTemplate>
 
         <!-- Document (tab) content templates -->
+        <DataTemplate DataType="{x:Type vmsale:SaleDocumentViewModel}">
+            <views:SaleView/>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vmorders:OrdersDocumentViewModel}">
+            <views:OrdersView/>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vmorders:OrderDetailDocumentViewModel}">
+            <views:OrderDetailView/>
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:WelcomeDocumentViewModel}">
             <ScrollViewer>
                 <StackPanel Margin="40" MaxWidth="640" HorizontalAlignment="Left">
@@ -45,8 +70,10 @@
                                FontSize="14" Foreground="Gray" Margin="0,4,0,24"/>
                     <TextBlock FontSize="13" TextWrapping="Wrap" Margin="0,0,0,12">
                         Connect to a DocumentForge node to sell against the order store, or work
-                        offline with the built-in demo airline. Shopping arrives in Phase 1:
-                        search one-way, return, or multi-city journeys and compare branded fares.
+                        offline with the built-in demo airline. Then open <Run FontWeight="SemiBold" Text="New Sale"/>
+                        to search one-way, return, or multi-city journeys, compare branded fares, pick
+                        seats on the cabin map, and take (simulated) payment — or <Run FontWeight="SemiBold" Text="Orders"/>
+                        to retrieve, change, and cancel existing bookings.
                     </TextBlock>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <Button Content="🔌  Connect…" Command="{Binding DataContext.ConnectCommand,

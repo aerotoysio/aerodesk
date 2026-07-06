@@ -1,0 +1,133 @@
+<UserControl x:Class="AeroDesk.Views.ExtrasSelectorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:AeroDesk.ViewModels"
+             xmlns:sale="clr-namespace:AeroDesk.ViewModels.Sale">
+    <!-- DataContext: ExtrasSelectorViewModel -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0" Margin="0,0,20,0">
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Flight" Style="{StaticResource FieldLabel}"/>
+                    <ComboBox ItemsSource="{Binding Segments}" SelectedItem="{Binding SelectedSegment}"
+                              Margin="0,0,0,10">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock>
+                                    <Run Text="{Binding FlightNumber, Mode=OneWay}"/>
+                                    <Run Text="{Binding Origin, Mode=OneWay}"/><Run Text="→"/><Run Text="{Binding Destination, Mode=OneWay}"/>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="Passenger" Style="{StaticResource FieldLabel}"/>
+                    <ComboBox ItemsSource="{Binding PaxChoices}" SelectedItem="{Binding SelectedPax}"
+                              DisplayMemberPath="Display" Margin="0,0,0,10"/>
+                    <TextBlock Text="{Binding SelectedSeatSummary}" Style="{StaticResource Hint}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Extras for this passenger &amp; flight" Style="{StaticResource H2}"/>
+                    <ItemsControl ItemsSource="{Binding AncillaryChoices}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type sale:AncillaryChoiceViewModel}">
+                                <CheckBox Margin="0,4" Content="{Binding Display}"
+                                          IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                          Command="{Binding DataContext.ToggleExtraCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          CommandParameter="{Binding}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding PendingSummary}" Style="{StaticResource Hint}"/>
+        </StackPanel>
+
+        <!-- Seat map -->
+        <Border Grid.Column="1" Style="{StaticResource Card}">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <Border Width="14" Height="14" Background="White" BorderBrush="{StaticResource Accent}" BorderThickness="1" CornerRadius="3" Margin="0,0,4,0"/>
+                    <TextBlock Text="Available" Style="{StaticResource Hint}" Margin="0,0,12,0"/>
+                    <Border Width="14" Height="14" Background="{StaticResource Accent}" CornerRadius="3" Margin="0,0,4,0"/>
+                    <TextBlock Text="Selected" Style="{StaticResource Hint}" Margin="0,0,12,0"/>
+                    <Border Width="14" Height="14" Background="#D1D5DB" CornerRadius="3" Margin="0,0,4,0"/>
+                    <TextBlock Text="Taken" Style="{StaticResource Hint}"/>
+                </StackPanel>
+                <ScrollViewer MaxHeight="440" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding SeatRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type sale:SeatRowViewModel}">
+                                <StackPanel Orientation="Horizontal" Margin="0,1">
+                                    <TextBlock Text="{Binding Row}" Width="24" VerticalAlignment="Center"
+                                               Style="{StaticResource Hint}" TextAlignment="Right" Margin="0,0,6,0"/>
+                                    <ItemsControl ItemsSource="{Binding Cells}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type sale:SeatCellViewModel}">
+                                                <ContentControl>
+                                                    <ContentControl.Style>
+                                                        <Style TargetType="ContentControl">
+                                                            <Setter Property="Content">
+                                                                <Setter.Value>
+                                                                    <Button Width="26" Height="24" Margin="1" Padding="0"
+                                                                            AutomationProperties.Name="{Binding Seat.SeatNumber}"
+                                                                            FontSize="10" Content="{Binding Label}"
+                                                                            ToolTip="{Binding Tooltip}"
+                                                                            IsEnabled="{Binding Seat.Available}"
+                                                                            Command="{Binding DataContext.PickSeatCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                            CommandParameter="{Binding Seat}">
+                                                                        <Button.Style>
+                                                                            <Style TargetType="Button">
+                                                                                <Setter Property="Background" Value="White"/>
+                                                                                <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                                                                <Setter Property="Foreground" Value="#333"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Seat.Available}" Value="False">
+                                                                                        <Setter Property="Background" Value="#D1D5DB"/>
+                                                                                        <Setter Property="BorderBrush" Value="#D1D5DB"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                                        <Setter Property="Background" Value="{StaticResource Accent}"/>
+                                                                                        <Setter Property="Foreground" Value="White"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Button.Style>
+                                                                    </Button>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsAisle}" Value="True">
+                                                                    <Setter Property="Content">
+                                                                        <Setter.Value>
+                                                                            <Border Width="16"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ContentControl.Style>
+                                                </ContentControl>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

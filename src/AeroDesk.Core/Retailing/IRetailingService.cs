@@ -32,9 +32,14 @@ public interface IRetailingService : IAsyncDisposable
     Task<IReadOnlyList<Offer>> SearchOffersAsync(ShopRequest request, CancellationToken ct = default);
     Task<Offer?> RepriceOfferAsync(string offerId, CancellationToken ct = default);
 
+    // ---- Seats & extras ----
+    Task<SeatMap> GetSeatMapAsync(FlightSegment segment, CancellationToken ct = default);
+    Task<IReadOnlyList<AncillaryOption>> GetAncillaryCatalogAsync(FlightSegment segment, CancellationToken ct = default);
+
     // ---- Ordering ----
     Task<OrderEnvelope> CreateOrderAsync(string offerId, IReadOnlyList<Passenger> passengers, CancellationToken ct = default);
     Task<OrderEnvelope?> GetOrderAsync(string orderIdOrLocator, CancellationToken ct = default);
+    Task<IReadOnlyList<OrderEnvelope>> ListOrdersAsync(int limit = 25, CancellationToken ct = default);
 
     // ---- Payment ----
     Task<OrderEnvelope> PayOrderAsync(string orderId, PaymentToken payment, string expectedEtag, CancellationToken ct = default);

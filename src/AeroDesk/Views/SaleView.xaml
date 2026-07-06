@@ -1,0 +1,506 @@
+<UserControl x:Class="AeroDesk.Views.SaleView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:AeroDesk.ViewModels.Sale"
+             xmlns:views="clr-namespace:AeroDesk.Views"
+             Background="{StaticResource PageBackground}">
+    <UserControl.Resources>
+
+        <!-- ============ Stage: Search ============ -->
+        <DataTemplate x:Key="SearchStage" DataType="{x:Type vm:SaleDocumentViewModel}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24" MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Text="Where is the customer flying?" Style="{StaticResource H1}"/>
+                    <TextBlock Text="Search the schedule and compare branded fares." Style="{StaticResource Hint}" Margin="0,0,0,16"/>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <RadioButton Content="One-way" Margin="0,0,16,0"
+                                             IsChecked="{Binding TripType, Converter={StaticResource EnumMatch}, ConverterParameter=OneWay}"/>
+                                <RadioButton Content="Return" Margin="0,0,16,0"
+                                             IsChecked="{Binding TripType, Converter={StaticResource EnumMatch}, ConverterParameter=Return}"/>
+                                <RadioButton Content="Multi-city"
+                                             IsChecked="{Binding TripType, Converter={StaticResource EnumMatch}, ConverterParameter=MultiCity}"/>
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding Legs}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:LegRowViewModel}">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="170"/>
+                                                <ColumnDefinition Width="170"/>
+                                                <ColumnDefinition Width="170"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                                <TextBlock Text="From" Style="{StaticResource FieldLabel}"/>
+                                                <ComboBox AutomationProperties.Name="From"
+                                                          ItemsSource="{Binding DataContext.Airports, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          SelectedItem="{Binding Origin}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                                <TextBlock Text="To" Style="{StaticResource FieldLabel}"/>
+                                                <ComboBox AutomationProperties.Name="To"
+                                                          ItemsSource="{Binding DataContext.Airports, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          SelectedItem="{Binding Destination}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Margin="0,0,10,0">
+                                                <TextBlock Text="Depart" Style="{StaticResource FieldLabel}"/>
+                                                <DatePicker SelectedDate="{Binding DepartureDate}"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="3" Content="✕" VerticalAlignment="Bottom" Padding="8,4"
+                                                    ToolTip="Remove this leg"
+                                                    Visibility="{Binding DataContext.IsMultiCity, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.RemoveLegCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <StackPanel Orientation="Horizontal">
+                                <StackPanel Width="170" Margin="0,0,10,0"
+                                            Visibility="{Binding IsReturn, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="Return" Style="{StaticResource FieldLabel}"/>
+                                    <DatePicker SelectedDate="{Binding ReturnDate}"/>
+                                </StackPanel>
+                                <Button Content="＋ Add flight" Style="{StaticResource GhostButton}" VerticalAlignment="Bottom"
+                                        Visibility="{Binding IsMultiCity, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding AddLegCommand}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel Orientation="Horizontal">
+                            <StackPanel Width="110" Margin="0,0,10,0">
+                                <TextBlock Text="Adults (12+)" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding AdultCounts}" SelectedItem="{Binding Adults}"/>
+                            </StackPanel>
+                            <StackPanel Width="110" Margin="0,0,10,0">
+                                <TextBlock Text="Children (2–11)" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding PaxCounts}" SelectedItem="{Binding Children}"/>
+                            </StackPanel>
+                            <StackPanel Width="110" Margin="0,0,10,0">
+                                <TextBlock Text="Infants (lap)" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding PaxCounts}" SelectedItem="{Binding Infants}"/>
+                            </StackPanel>
+                            <StackPanel Width="170">
+                                <TextBlock Text="Cabin" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding Cabins}" SelectedItem="{Binding Cabin}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Button Content="Search flights  →" Style="{StaticResource PrimaryButton}"
+                            HorizontalAlignment="Left" Command="{Binding SearchCommand}"/>
+                </StackPanel>
+            </ScrollViewer>
+        </DataTemplate>
+
+        <!-- ============ Stage: Results ============ -->
+        <DataTemplate x:Key="ResultsStage" DataType="{x:Type vm:SaleDocumentViewModel}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Text="Choose flights and fare" Style="{StaticResource H1}"/>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,16"
+                               Text="Prices are per party, taxes included. Offers hold for 30 minutes."/>
+                    <ItemsControl ItemsSource="{Binding ItineraryCards}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ItineraryCardViewModel}">
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding RouteLine}" FontSize="16" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Summary}" Style="{StaticResource Hint}" Margin="0,4,0,2"/>
+                                        <TextBlock Text="{Binding CabinLine}" Style="{StaticResource Hint}" Margin="0,0,0,10"/>
+                                        <ItemsControl ItemsSource="{Binding Offers}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Style="{StaticResource GhostButton}" Margin="0,0,10,4"
+                                                            AutomationProperties.Name="{Binding FareFamily}"
+                                                            Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding FareFamily}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                                            <TextBlock HorizontalAlignment="Center">
+                                                                <Run Text="{Binding TotalPrice.Total, Mode=OneWay, StringFormat=N2}"/>
+                                                                <Run Text="{Binding Currency, Mode=OneWay}"/>
+                                                            </TextBlock>
+                                                            <TextBlock Text="{Binding Items[0].Fare.BaggageAllowance, Mode=OneWay}"
+                                                                       Style="{StaticResource Hint}" HorizontalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Content="←  Back to search" Style="{StaticResource GhostButton}"
+                            HorizontalAlignment="Left" Command="{Binding BackToSearchCommand}"/>
+                </StackPanel>
+            </ScrollViewer>
+        </DataTemplate>
+
+        <!-- ============ Stage: Passengers ============ -->
+        <DataTemplate x:Key="PassengersStage" DataType="{x:Type vm:SaleDocumentViewModel}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24" MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Text="Passenger details" Style="{StaticResource H1}"/>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,16"
+                               Text="Names as on the travel document. Travel document fields are optional for the demo (APIS)."/>
+                    <ItemsControl ItemsSource="{Binding PassengerForms}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:PassengerFormViewModel}">
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Header}" Style="{StaticResource H2}"/>
+                                        <WrapPanel>
+                                            <StackPanel Width="90" Margin="0,0,10,8">
+                                                <TextBlock Text="Title" Style="{StaticResource FieldLabel}"/>
+                                                <ComboBox ItemsSource="{Binding Titles}" SelectedItem="{Binding Title}"/>
+                                            </StackPanel>
+                                            <StackPanel Width="180" Margin="0,0,10,8">
+                                                <TextBlock Text="Given name" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox AutomationProperties.Name="{Binding PassengerId, StringFormat='Given name {0}'}"
+                                                         Text="{Binding GivenName, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Width="180" Margin="0,0,10,8">
+                                                <TextBlock Text="Surname" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox AutomationProperties.Name="{Binding PassengerId, StringFormat='Surname {0}'}"
+                                                         Text="{Binding Surname, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Width="150" Margin="0,0,10,8">
+                                                <TextBlock Text="Date of birth" Style="{StaticResource FieldLabel}"/>
+                                                <DatePicker SelectedDate="{Binding DateOfBirth}"/>
+                                            </StackPanel>
+                                        </WrapPanel>
+                                        <WrapPanel Visibility="{Binding IsLead, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel Width="280" Margin="0,0,10,8">
+                                                <TextBlock Text="Email (confirmation)" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox AutomationProperties.Name="Email"
+                                                         Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Width="180" Margin="0,0,10,8">
+                                                <TextBlock Text="Phone" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                        </WrapPanel>
+                                        <Expander Header="Travel document (APIS)" Margin="0,4,0,0">
+                                            <WrapPanel Margin="0,8,0,0">
+                                                <StackPanel Width="180" Margin="0,0,10,8">
+                                                    <TextBlock Text="Passport number" Style="{StaticResource FieldLabel}"/>
+                                                    <TextBox Text="{Binding DocumentNumber, UpdateSourceTrigger=PropertyChanged}"/>
+                                                </StackPanel>
+                                                <StackPanel Width="140" Margin="0,0,10,8">
+                                                    <TextBlock Text="Issuing country" Style="{StaticResource FieldLabel}"/>
+                                                    <TextBox Text="{Binding DocumentCountry, UpdateSourceTrigger=PropertyChanged}"/>
+                                                </StackPanel>
+                                                <StackPanel Width="150" Margin="0,0,10,8">
+                                                    <TextBlock Text="Expiry" Style="{StaticResource FieldLabel}"/>
+                                                    <DatePicker SelectedDate="{Binding DocumentExpiry}"/>
+                                                </StackPanel>
+                                            </WrapPanel>
+                                        </Expander>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="←  Back to flights" Style="{StaticResource GhostButton}" Margin="0,0,12,0"
+                                Command="{Binding BackToResultsCommand}"/>
+                        <Button Content="Create order &amp; continue  →" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding CreateOrderCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </DataTemplate>
+
+        <!-- ============ Stage: Seats & Extras (shared picker) ============ -->
+        <DataTemplate x:Key="ExtrasStage" DataType="{x:Type vm:SaleDocumentViewModel}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24" HorizontalAlignment="Left">
+                    <TextBlock Text="Seats &amp; extras" Style="{StaticResource H1}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <Border Style="{StaticResource Pill}" Margin="0,0,8,0">
+                            <TextBlock Text="{Binding Order.OrderId, StringFormat=Order {0}}"/>
+                        </Border>
+                        <Border Style="{StaticResource Pill}">
+                            <TextBlock Text="{Binding Order.RecordLocator, StringFormat=Locator {0}}"/>
+                        </Border>
+                    </StackPanel>
+
+                    <views:ExtrasSelectorView DataContext="{Binding Extras}"/>
+
+                    <Button Content="Apply &amp; review  →" Style="{StaticResource PrimaryButton}"
+                            HorizontalAlignment="Left" Margin="0,12,0,0"
+                            Command="{Binding ApplyExtrasCommand}"/>
+                </StackPanel>
+            </ScrollViewer>
+        </DataTemplate>
+
+        <!-- ============ Stage: Review ============ -->
+        <DataTemplate x:Key="ReviewStage" DataType="{x:Type vm:SaleDocumentViewModel}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24" MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Text="Review order" Style="{StaticResource H1}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <Border Style="{StaticResource Pill}" Margin="0,0,8,0">
+                            <TextBlock Text="{Binding Order.OrderId, StringFormat=Order {0}}"/>
+                        </Border>
+                        <Border Style="{StaticResource Pill}" Margin="0,0,8,0">
+                            <TextBlock Text="{Binding Order.RecordLocator, StringFormat=Locator {0}}"/>
+                        </Border>
+                        <Border Style="{StaticResource Pill}">
+                            <TextBlock Text="{Binding Order.Status}"/>
+                        </Border>
+                    </StackPanel>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Itinerary" Style="{StaticResource H2}"/>
+                            <ItemsControl ItemsSource="{Binding Order.Segments}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,2">
+                                            <Run Text="{Binding FlightNumber, Mode=OneWay}" FontWeight="SemiBold"/>
+                                            <Run Text="{Binding Origin, Mode=OneWay}"/><Run Text="→"/><Run Text="{Binding Destination, Mode=OneWay}"/>
+                                            <Run Text="{Binding DepartureUtc, Mode=OneWay, StringFormat='  ddd d MMM HH:mm'}"/>
+                                            <Run Text="{Binding ArrivalUtc, Mode=OneWay, StringFormat='– HH:mm '}"/>
+                                            <Run Text="{Binding Equipment, Mode=OneWay}" Foreground="#888"/>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Passengers" Style="{StaticResource H2}"/>
+                            <ItemsControl ItemsSource="{Binding Order.Passengers}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,2">
+                                            <Run Text="{Binding Title, Mode=OneWay}"/>
+                                            <Run Text="{Binding GivenName, Mode=OneWay}"/>
+                                            <Run Text="{Binding Surname, Mode=OneWay}" FontWeight="SemiBold"/>
+                                            <Run Text="{Binding Type, Mode=OneWay, StringFormat='({0})'}" Foreground="#888"/>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Seats &amp; extras" Style="{StaticResource H2}"/>
+                            <ItemsControl ItemsSource="{Binding Order.Seats}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,2">
+                                            <Run Text="Seat"/>
+                                            <Run Text="{Binding SeatNumber, Mode=OneWay}" FontWeight="SemiBold"/>
+                                            <Run Text="{Binding SegmentId, Mode=OneWay, StringFormat='on {0}'}"/>
+                                            <Run Text="{Binding PassengerId, Mode=OneWay, StringFormat='for {0}'}"/>
+                                            <Run Text="{Binding Price.Total, Mode=OneWay, StringFormat='— {0:N2}'}"/>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <ItemsControl ItemsSource="{Binding Order.Ancillaries}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,2">
+                                            <Run Text="{Binding Name, Mode=OneWay}"/>
+                                            <Run Text="{Binding SegmentId, Mode=OneWay, StringFormat='on {0}'}"/>
+                                            <Run Text="{Binding PassengerId, Mode=OneWay, StringFormat='for {0}'}"/>
+                                            <Run Text="{Binding Price.Total, Mode=OneWay, StringFormat='— {0:N2}'}"/>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}" Background="{StaticResource AccentLight}">
+                        <StackPanel>
+                            <TextBlock Text="Total" Style="{StaticResource H2}"/>
+                            <TextBlock Text="{Binding TotalLine}" FontSize="18" FontWeight="SemiBold"/>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                       Text="Payment is due within 24 hours or the order lapses."/>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="←  Seats &amp; extras" Style="{StaticResource GhostButton}" Margin="0,0,12,0"
+                                Command="{Binding BackToExtrasCommand}"/>
+                        <Button Content="Take payment  →" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding GoToPaymentCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </DataTemplate>
+
+        <!-- ============ Stage: Payment ============ -->
+        <DataTemplate x:Key="PaymentStage" DataType="{x:Type vm:SaleDocumentViewModel}">
+            <StackPanel Margin="24" MaxWidth="480" HorizontalAlignment="Left">
+                <TextBlock Text="Payment" Style="{StaticResource H1}"/>
+                <TextBlock Text="{Binding TotalLine}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Card (tokenized)" Style="{StaticResource H2}"/>
+                        <TextBlock Text="Payment token" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding CardToken, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"/>
+                        <TextBlock Text="Card last 4 digits" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding CardLast4, UpdateSourceTrigger=PropertyChanged}" Width="90" HorizontalAlignment="Left"/>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,12,0,0"
+                                   Text="Demo gateway: any token authorizes. Production must use a PCI-DSS-compliant hosted/tokenized gateway — agents never handle full card numbers or CVVs, and AeroDesk never stores them."/>
+                    </StackPanel>
+                </Border>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="←  Review" Style="{StaticResource GhostButton}" Margin="0,0,12,0"
+                            Command="{Binding GoToReviewCommand}"/>
+                    <Button Content="💳  Authorize payment" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding PayCommand}"/>
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ============ Stage: Confirmation ============ -->
+        <DataTemplate x:Key="ConfirmationStage" DataType="{x:Type vm:SaleDocumentViewModel}">
+            <StackPanel Margin="24" MaxWidth="560" HorizontalAlignment="Left">
+                <TextBlock Text="✔ Booking confirmed" Style="{StaticResource H1}" Foreground="{StaticResource Success}"/>
+                <TextBlock FontSize="28" FontWeight="Bold" Margin="0,8,0,2"
+                           Text="{Binding Order.RecordLocator}"/>
+                <TextBlock Text="{Binding Order.OrderId, StringFormat=Order {0}}" Style="{StaticResource Hint}" Margin="0,0,0,16"/>
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Documents issued" Style="{StaticResource H2}"/>
+                        <ItemsControl ItemsSource="{Binding Order.Documents}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Margin="0,2" FontFamily="Consolas">
+                                        <Run Text="{Binding Kind, Mode=OneWay}"/>
+                                        <Run Text="{Binding DocumentNumber, Mode=OneWay}" FontWeight="SemiBold"/>
+                                        <Run Text="{Binding PassengerId, Mode=OneWay, StringFormat='— {0}'}"/>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding TotalLine}" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Border>
+                <Button Content="Start another sale" Style="{StaticResource GhostButton}" HorizontalAlignment="Left"
+                        Command="{Binding StartNewSaleCommand}"/>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="170"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Step rail -->
+        <Border Grid.Column="0" Background="White" BorderBrush="{StaticResource CardBorder}" BorderThickness="0,0,1,0">
+            <ItemsControl ItemsSource="{Binding Steps}" Margin="0,20,0,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:StepViewModel}">
+                        <StackPanel Orientation="Horizontal" Margin="16,7">
+                            <Ellipse Width="10" Height="10" Margin="0,0,10,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="#D1D5DB"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDone}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource Success}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource Accent}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                <Setter Property="Foreground" Value="Black"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <!-- Stage content -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <StackPanel Grid.Row="0">
+                <ProgressBar Height="3" IsIndeterminate="{Binding IsBusy}" BorderThickness="0"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"/>
+                <TextBlock Text="{Binding ErrorText}" Foreground="{StaticResource Danger}" TextWrapping="Wrap"
+                           Margin="24,8,24,0" FontWeight="SemiBold">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ErrorText}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+            <ContentControl Grid.Row="1" Content="{Binding}">
+                <ContentControl.Style>
+                    <Style TargetType="ContentControl">
+                        <Setter Property="ContentTemplate" Value="{StaticResource SearchStage}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Stage}" Value="Results">
+                                <Setter Property="ContentTemplate" Value="{StaticResource ResultsStage}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Stage}" Value="Passengers">
+                                <Setter Property="ContentTemplate" Value="{StaticResource PassengersStage}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Stage}" Value="Extras">
+                                <Setter Property="ContentTemplate" Value="{StaticResource ExtrasStage}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Stage}" Value="Review">
+                                <Setter Property="ContentTemplate" Value="{StaticResource ReviewStage}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Stage}" Value="Payment">
+                                <Setter Property="ContentTemplate" Value="{StaticResource PaymentStage}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Stage}" Value="Confirmation">
+                                <Setter Property="ContentTemplate" Value="{StaticResource ConfirmationStage}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ContentControl.Style>
+            </ContentControl>
+        </Grid>
+    </Grid>
+</UserControl>
