@@ -176,6 +176,25 @@ public sealed class InMemoryRetailingService : IRetailingService
         }
     }
 
+    public Task<IReadOnlyList<FlightSegment>> GetAlternativeFlightsAsync(FlightSegment segment, DateOnly newDate, CancellationToken ct = default)
+    {
+        IReadOnlyList<FlightSegment> flights = FlightSchedule
+            .FlightsFor(segment.Origin, segment.Destination, newDate, segment.Cabin)
+            .Where(f => f.SegmentId != segment.SegmentId)
+            .ToList();
+        return Task.FromResult(flights);
+    }
+
+    public Task<OrderEnvelope> ChangeFlightAsync(string orderId, string oldSegmentId, FlightSegment newSegment, string expectedEtag, CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            var order = TakeGuarded(orderId, expectedEtag);
+            var fee = OrderFactory.GetFlightChangeFee(order);
+            return Task.FromResult(Store(OrderFactory.ApplyFlightChange(order, oldSegmentId, newSegment, fee)));
+        }
+    }
+
     public Task<OrderEnvelope> CancelOrderAsync(string orderId, string expectedEtag, CancellationToken ct = default)
     {
         lock (_gate)

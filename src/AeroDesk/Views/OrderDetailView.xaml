@@ -143,6 +143,53 @@
                 </StackPanel>
             </Border>
 
+            <!-- Servicing: change flight (rebook) -->
+            <Expander Header="Change flight" Margin="0,0,0,12"
+                      Visibility="{Binding CanModify, Converter={StaticResource BoolToVis}}">
+                <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding ChangeFeeLine}" Style="{StaticResource Hint}" Margin="0,0,0,10"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <StackPanel Width="230" Margin="0,0,10,0">
+                                <TextBlock Text="Flight to change" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding Order.Segments}" SelectedItem="{Binding ChangeSegment}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock>
+                                                <Run Text="{Binding FlightNumber, Mode=OneWay}"/>
+                                                <Run Text="{Binding Origin, Mode=OneWay}"/><Run Text="→"/><Run Text="{Binding Destination, Mode=OneWay}"/>
+                                                <Run Text="{Binding DepartureUtc, Mode=OneWay, StringFormat='d MMM HH:mm'}"/>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Width="150" Margin="0,0,10,0">
+                                <TextBlock Text="New date" Style="{StaticResource FieldLabel}"/>
+                                <DatePicker SelectedDate="{Binding ChangeDate}"/>
+                            </StackPanel>
+                            <Button Content="Find flights" Style="{StaticResource GhostButton}" VerticalAlignment="Bottom"
+                                    Command="{Binding FindAlternativesCommand}"/>
+                        </StackPanel>
+                        <ListBox ItemsSource="{Binding Alternatives}" SelectedItem="{Binding SelectedAlternative}"
+                                 MaxHeight="160" BorderThickness="1" BorderBrush="{StaticResource CardBorder}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Margin="2">
+                                        <Run Text="{Binding FlightNumber, Mode=OneWay}" FontWeight="SemiBold"/>
+                                        <Run Text="{Binding DepartureUtc, Mode=OneWay, StringFormat='ddd d MMM HH:mm'}"/>
+                                        <Run Text="{Binding ArrivalUtc, Mode=OneWay, StringFormat='– HH:mm'}"/>
+                                        <Run Text="{Binding Equipment, Mode=OneWay}" Foreground="#888"/>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Button Content="Rebook onto selected flight" Style="{StaticResource PrimaryButton}"
+                                HorizontalAlignment="Left" Margin="0,10,0,0" Command="{Binding RebookCommand}"/>
+                    </StackPanel>
+                </Border>
+            </Expander>
+
             <!-- Servicing: add seats/extras -->
             <Expander Header="Change seats &amp; add extras" Margin="0,0,0,12"
                       Visibility="{Binding CanModify, Converter={StaticResource BoolToVis}}">

@@ -116,6 +116,72 @@ public sealed partial class OrderDetailDocumentViewModel : DocumentViewModel
         await Extras.LoadAsync(Envelope.Order);
     });
 
+    // ---- Change flight (rebook) ----
+
+    [ObservableProperty] private FlightSegment? _changeSegment;
+    [ObservableProperty] private DateTime? _changeDate;
+    [ObservableProperty] private FlightSegment? _selectedAlternative;
+    public System.Collections.ObjectModel.ObservableCollection<FlightSegment> Alternatives { get; } = [];
+
+    public string ChangeFeeLine
+    {
+        get
+        {
+            if (Order is null) return "";
+            try
+            {
+                var fee = Core.Retailing.OrderFactory.GetFlightChangeFee(Order);
+                return fee.Total > 0
+                    ? $"Change fee: {fee.Total:N2} {fee.Currency} ({Order.Passengers.Count(p => p.Type != Ptc.INF)} pax)"
+                    : "Free changes on this fare.";
+            }
+            catch (InvalidOperationException ex)
+            {
+                return ex.Message;
+            }
+        }
+    }
+
+    partial void OnChangeSegmentChanged(FlightSegment? value)
+    {
+        Alternatives.Clear();
+        SelectedAlternative = null;
+        if (value is not null) ChangeDate = value.DepartureUtc.Date.AddDays(1);
+    }
+
+    [RelayCommand]
+    private Task FindAlternativesAsync() => RunAsync(async () =>
+    {
+        if (ChangeSegment is null || ChangeDate is null)
+            throw new ArgumentException("Pick the flight to change and a new date first.");
+        var flights = await _service.GetAlternativeFlightsAsync(ChangeSegment, DateOnly.FromDateTime(ChangeDate.Value));
+        Alternatives.Clear();
+        foreach (var f in flights) Alternatives.Add(f);
+        if (Alternatives.Count == 0) ErrorText = "No flights on that route/date.";
+        SelectedAlternative = Alternatives.FirstOrDefault();
+    });
+
+    [RelayCommand]
+    private Task RebookAsync() => RunAsync(async () =>
+    {
+        if (Envelope is null || Order is null || ChangeSegment is null) return;
+        if (SelectedAlternative is null) throw new ArgumentException("Pick a replacement flight.");
+
+        var fee = Core.Retailing.OrderFactory.GetFlightChangeFee(Order); // throws for non-changeable fares
+        var feeText = fee.Total > 0 ? $"A change fee of {fee.Total:N2} {fee.Currency} applies." : "No change fee (flexible fare).";
+        if (!_dialogs.Confirm("Change flight",
+            $"Move from {ChangeSegment.FlightNumber} ({ChangeSegment.DepartureUtc:d MMM HH:mm}) to " +
+            $"{SelectedAlternative.FlightNumber} ({SelectedAlternative.DepartureUtc:d MMM HH:mm})?\n\n" +
+            $"{feeText} Seats on the old flight are released."))
+            return;
+
+        Envelope = await _service.ChangeFlightAsync(Order.OrderId, ChangeSegment.SegmentId, SelectedAlternative, Envelope.Etag);
+        ChangeSegment = null;
+        Alternatives.Clear();
+        await Extras.LoadAsync(Envelope.Order);
+        OnPropertyChanged(nameof(ChangeFeeLine));
+    });
+
     [RelayCommand]
     private Task CancelOrderAsync() => RunAsync(async () =>
     {

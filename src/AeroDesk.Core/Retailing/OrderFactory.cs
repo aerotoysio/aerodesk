@@ -81,6 +81,56 @@ public static class OrderFactory
         });
     }
 
+    /// <summary>
+    /// The order-level change fee for a flight change: the strictest fare wins.
+    /// Throws when any fare in the order forbids changes (e.g. Basic); returns
+    /// the total fee (per-passenger fee × seated passengers), which may be zero.
+    /// </summary>
+    public static PriceDetail GetFlightChangeFee(Order order)
+    {
+        var fares = order.Items.Select(i => i.Fare).ToList();
+        var blocking = fares.FirstOrDefault(f => !f.Changeable);
+        if (blocking is not null)
+            throw new InvalidOperationException(
+                $"The {blocking.FareFamily} fare does not permit flight changes — cancel and rebook instead.");
+
+        var perPax = fares.Max(f => f.ChangeFee ?? 0m);
+        var seated = order.Passengers.Count(p => p.Type != Ptc.INF);
+        return new PriceDetail(perPax * seated, 0m, order.Currency);
+    }
+
+    /// <summary>
+    /// Swap one flown segment for another (rebook). Seats on the old flight are
+    /// released (different aircraft/date); bag/meal ancillaries follow the new
+    /// flight; a non-zero change fee lands as an order-level CHG service line.
+    /// </summary>
+    public static Order ApplyFlightChange(Order order, string oldSegmentId, FlightSegment newSegment, PriceDetail changeFee)
+    {
+        if (order.Status == OrderStatus.Cancelled)
+            throw new InvalidOperationException($"Order {order.OrderId} is cancelled.");
+        if (!order.Segments.Any(s => s.SegmentId == oldSegmentId))
+            throw new ArgumentException($"Segment '{oldSegmentId}' is not part of order {order.OrderId}.");
+
+        var ancillaries = order.Ancillaries
+            .Select(a => a.SegmentId == oldSegmentId ? a with { SegmentId = newSegment.SegmentId } : a)
+            .ToList();
+        if (changeFee.Total > 0)
+            ancillaries.Add(new Ancillary(
+                Guid.NewGuid().ToString("N"), "CHG", "Flight change fee",
+                newSegment.SegmentId, "ALL", changeFee));
+
+        return order with
+        {
+            Segments = order.Segments.Select(s => s.SegmentId == oldSegmentId ? newSegment : s).ToList(),
+            Items = order.Items.Select(i => i with
+            {
+                SegmentIds = i.SegmentIds.Select(id => id == oldSegmentId ? newSegment.SegmentId : id).ToList(),
+            }).ToList(),
+            Seats = order.Seats.Where(s => s.SegmentId != oldSegmentId).ToList(),
+            Ancillaries = ancillaries,
+        };
+    }
+
     /// <summary>Apply a servicing change (adds/removals) to an order snapshot.</summary>
     public static Order ApplyChange(Order order, OrderChange change)
     {

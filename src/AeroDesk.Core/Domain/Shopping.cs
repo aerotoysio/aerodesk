@@ -33,13 +33,38 @@ public sealed record FlightSegment(
     Cabin Cabin,
     string BookingClass);
 
-/// <summary>Fare basis + branded fare family for a set of segments.</summary>
+/// <summary>Fare basis + branded fare family for a set of segments, with the
+/// brand's rules: change policy, refundability, and what's included.</summary>
 public sealed record FareComponent(
     string FareBasisCode,
-    string FareFamily,          // e.g. "Basic", "Flex", "Business Flex"
+    string FareFamily,          // e.g. "Basic", "Standard", "Flex", "Classic"
     string BaggageAllowance,    // e.g. "1 x 23kg"
     bool Changeable,
-    bool Refundable);
+    bool Refundable,
+    decimal? ChangeFee = null,  // per passenger; null when not changeable, 0 = free changes
+    bool SeatSelectionIncluded = false,
+    bool MealIncluded = false,
+    bool PriorityBoarding = false)
+{
+    /// <summary>Human line for the change rules, e.g. "Changes 75 USD/pax".</summary>
+    public string ChangePolicy =>
+        !Changeable ? "No changes"
+        : ChangeFee is > 0 ? $"Changes {ChangeFee:0} USD/pax"
+        : "Free changes";
+
+    /// <summary>What the brand throws in, e.g. "Seat • Meal • Priority".</summary>
+    public string PerksLine
+    {
+        get
+        {
+            var perks = new List<string>(3);
+            if (SeatSelectionIncluded) perks.Add("Seat");
+            if (MealIncluded) perks.Add("Meal");
+            if (PriorityBoarding) perks.Add("Priority");
+            return perks.Count == 0 ? "No inclusions" : string.Join(" • ", perks);
+        }
+    }
+}
 
 /// <summary>One priced item inside an offer: a fare for one passenger type across segments.</summary>
 public sealed record OfferItem(
