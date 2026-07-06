@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    UI-free logic for AeroDesk: the retailing service abstraction (DocumentForge
+    HTTP vs in-memory), domain model for IATA Offers & Orders, settings/connection
+    stores, and the DPAPI secret store. Windows-only because secrets use DPAPI.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AeroDesk.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.*" />
+  </ItemGroup>
+
+</Project>
