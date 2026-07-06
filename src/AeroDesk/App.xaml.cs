@@ -20,7 +20,8 @@ public partial class App : Application
         var workspace = new AeroDeskWorkspace();
         SeedFirstRunConnection(workspace);
 
-        MainWindow = new MainWindow(workspace);
+        // `--offline` jumps straight into an in-memory demo sale (dev/demo shortcut).
+        MainWindow = new MainWindow(workspace, offlineDemo: e.Args.Contains("--offline"));
         MainWindow.Show();
     }
 

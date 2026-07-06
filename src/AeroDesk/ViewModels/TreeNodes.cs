@@ -36,23 +36,31 @@ public sealed partial class ConnectionNodeViewModel : TreeNodeViewModel
         Glyph = "✈";
         IsExpanded = true;
 
-        // Placeholders for the flows each phase lights up.
-        Children.Add(new PlaceholderNodeViewModel("🛒", "New Sale — Phase 1"));
-        Children.Add(new PlaceholderNodeViewModel("📋", "Orders — Phase 2"));
+        Children.Add(new ActionNodeViewModel("🛒", "New Sale", () => _main.OpenSale(this)));
+        Children.Add(new ActionNodeViewModel("📋", "Orders", () => _main.OpenOrders(this)));
     }
+
+    [RelayCommand]
+    private Task SeedDemoDataAsync() => _main.SeedDemoDataAsync(this);
 
     [RelayCommand]
     private Task DisconnectAsync() => _main.DisconnectAsync(this);
 }
 
-/// <summary>A greyed-out future feature, so the tree telegraphs the roadmap.</summary>
-public sealed class PlaceholderNodeViewModel : TreeNodeViewModel
+/// <summary>A clickable navigation entry (double-click or context menu → open).</summary>
+public sealed partial class ActionNodeViewModel : TreeNodeViewModel
 {
-    public PlaceholderNodeViewModel(string glyph, string name)
+    private readonly Action _open;
+
+    public ActionNodeViewModel(string glyph, string name, Action open)
     {
         Glyph = glyph;
         Name = name;
+        _open = open;
     }
+
+    [RelayCommand]
+    private void Open() => _open();
 }
 
 /// <summary>Inline error display (e.g. a failed connect).</summary>
