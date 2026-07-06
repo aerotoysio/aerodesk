@@ -48,6 +48,13 @@ public interface IRetailingService : IAsyncDisposable
     Task<OrderEnvelope> ChangeOrderAsync(OrderChange change, string expectedEtag, CancellationToken ct = default);
     Task<OrderEnvelope> CancelOrderAsync(string orderId, string expectedEtag, CancellationToken ct = default);
 
+    /// <summary>Alternative flights for a rebooking: same O&amp;D and cabin on the new date.</summary>
+    Task<IReadOnlyList<FlightSegment>> GetAlternativeFlightsAsync(FlightSegment segment, DateOnly newDate, CancellationToken ct = default);
+
+    /// <summary>Swap one flight for another. Fare rules apply: non-changeable fares
+    /// are rejected, change fees land as an order-level CHG service line.</summary>
+    Task<OrderEnvelope> ChangeFlightAsync(string orderId, string oldSegmentId, FlightSegment newSegment, string expectedEtag, CancellationToken ct = default);
+
     // ---- Bootstrap ----
     /// <summary>Create collections + sample flight inventory so a fresh node demos end to end.</summary>
     Task SeedInventoryAsync(CancellationToken ct = default);

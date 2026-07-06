@@ -125,13 +125,21 @@
                                                             AutomationProperties.Name="{Binding FareFamily}"
                                                             Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                             CommandParameter="{Binding}">
-                                                        <StackPanel>
+                                                        <StackPanel MinWidth="150">
                                                             <TextBlock Text="{Binding FareFamily}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                                                            <TextBlock HorizontalAlignment="Center">
+                                                            <TextBlock HorizontalAlignment="Center" FontSize="15" Margin="0,2,0,4">
                                                                 <Run Text="{Binding TotalPrice.Total, Mode=OneWay, StringFormat=N2}"/>
                                                                 <Run Text="{Binding Currency, Mode=OneWay}"/>
                                                             </TextBlock>
-                                                            <TextBlock Text="{Binding Items[0].Fare.BaggageAllowance, Mode=OneWay}"
+                                                            <TextBlock Text="{Binding Items[0].Fare.BaggageAllowance, Mode=OneWay, StringFormat=🧳 {0}}"
+                                                                       Style="{StaticResource Hint}" HorizontalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding Items[0].Fare.ChangePolicy, Mode=OneWay, StringFormat=🔁 {0}}"
+                                                                       Style="{StaticResource Hint}" HorizontalAlignment="Center"/>
+                                                            <TextBlock Style="{StaticResource Hint}" HorizontalAlignment="Center">
+                                                                <Run Text="💵"/><Run Text=" "/>
+                                                                <Run Text="{Binding Items[0].Fare.Refundable, Mode=OneWay, Converter={StaticResource RefundText}}"/>
+                                                            </TextBlock>
+                                                            <TextBlock Text="{Binding Items[0].Fare.PerksLine, Mode=OneWay, StringFormat=✨ {0}}"
                                                                        Style="{StaticResource Hint}" HorizontalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Button>

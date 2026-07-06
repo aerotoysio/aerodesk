@@ -13,13 +13,33 @@ public static class OfferFactory
     private const int MaxItinerariesPerSearch = 4;
     private static readonly TimeSpan OfferLifetime = TimeSpan.FromMinutes(30);
 
-    private sealed record FareFamily(string Name, decimal Multiplier, string Baggage, bool Changeable, bool Refundable, string FareBasisSuffix);
+    private sealed record FareFamily(
+        string Name, decimal Multiplier, string Baggage,
+        bool Changeable, decimal? ChangeFee, bool Refundable,
+        bool SeatIncluded, bool MealIncluded, bool Priority, string FareBasisSuffix);
 
-    private static readonly FareFamily[] Families =
+    // Branded fares per cabin tier. Premium cabins sell service-rich brands,
+    // economy tiers trade flexibility for price.
+    private static readonly FareFamily[] EconomyFamilies =
     [
-        new("Basic", 1.00m, "1 x 23kg", Changeable: false, Refundable: false, "BSC"),
-        new("Flex",  1.45m, "2 x 23kg", Changeable: true,  Refundable: true,  "FLX"),
+        new("Basic",    1.00m, "Cabin bag only", Changeable: false, ChangeFee: null, Refundable: false,
+            SeatIncluded: false, MealIncluded: false, Priority: false, "BSC"),
+        new("Standard", 1.20m, "1 x 23kg",       Changeable: true,  ChangeFee: 75m,  Refundable: false,
+            SeatIncluded: false, MealIncluded: false, Priority: false, "STD"),
+        new("Flex",     1.55m, "2 x 23kg",       Changeable: true,  ChangeFee: 0m,   Refundable: true,
+            SeatIncluded: true,  MealIncluded: true,  Priority: true,  "FLX"),
     ];
+
+    private static readonly FareFamily[] PremiumFamilies =
+    [
+        new("Classic", 1.00m, "2 x 32kg", Changeable: true, ChangeFee: 150m, Refundable: false,
+            SeatIncluded: true, MealIncluded: true, Priority: true, "CLS"),
+        new("Flex",    1.35m, "3 x 32kg", Changeable: true, ChangeFee: 0m,   Refundable: true,
+            SeatIncluded: true, MealIncluded: true, Priority: true, "FLX"),
+    ];
+
+    private static FareFamily[] FamiliesFor(Cabin cabin) =>
+        cabin is Cabin.Business or Cabin.First ? PremiumFamilies : EconomyFamilies;
 
     /// <summary>Build offers with flights sourced from the built-in schedule (in-memory service).</summary>
     public static IReadOnlyList<Offer> Build(ShopRequest request, DateTime nowUtc, Func<string> offerIdFactory)
@@ -55,7 +75,7 @@ public static class OfferFactory
             // i-th departure of each leg — earliest with earliest, latest with latest.
             var segments = perLeg.Select(flights => flights[Math.Min(i, flights.Count - 1)]).ToList();
 
-            foreach (var family in Families)
+            foreach (var family in FamiliesFor(request.Cabin))
             {
                 var items = BuildItems(request, segments, family);
                 if (items.Count == 0) continue;
@@ -91,7 +111,11 @@ public static class OfferFactory
                     FareFamily: family.Name,
                     BaggageAllowance: ptc == Ptc.INF ? "1 x 10kg" : family.Baggage,
                     Changeable: family.Changeable,
-                    Refundable: family.Refundable),
+                    Refundable: family.Refundable,
+                    ChangeFee: family.ChangeFee,
+                    SeatSelectionIncluded: family.SeatIncluded,
+                    MealIncluded: family.MealIncluded,
+                    PriorityBoarding: family.Priority),
                 PricePerPassenger: FareModel.Price(segments, family.Multiplier, ptc)));
         }
 

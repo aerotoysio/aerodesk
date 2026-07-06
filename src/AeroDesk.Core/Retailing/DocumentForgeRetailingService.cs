@@ -215,6 +215,26 @@ public sealed class DocumentForgeRetailingService : IRetailingService
         return await WriteBackAsync(doc.DocId, changed, doc.Etag, ct).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<FlightSegment>> GetAlternativeFlightsAsync(FlightSegment segment, DateOnly newDate, CancellationToken ct = default)
+    {
+        var result = await _client.ExecuteAsync(
+            $"SELECT * FROM {FlightsCollection} WHERE origin = '{Sql(segment.Origin)}' " +
+            $"AND destination = '{Sql(segment.Destination)}'", ct).ConfigureAwait(false);
+        return result.Documents
+            .Select(json => JsonSerializer.Deserialize<FlightSchedule.Route>(json, Wire)!)
+            .Select(route => FlightSchedule.BuildSegment(route, newDate, segment.Cabin))
+            .Where(f => f.SegmentId != segment.SegmentId)
+            .ToList();
+    }
+
+    public async Task<OrderEnvelope> ChangeFlightAsync(string orderId, string oldSegmentId, FlightSegment newSegment, string expectedEtag, CancellationToken ct = default)
+    {
+        var doc = await TakeGuardedAsync(orderId, expectedEtag, ct).ConfigureAwait(false);
+        var fee = OrderFactory.GetFlightChangeFee(doc.Order);
+        var changed = OrderFactory.ApplyFlightChange(doc.Order, oldSegmentId, newSegment, fee);
+        return await WriteBackAsync(doc.DocId, changed, doc.Etag, ct).ConfigureAwait(false);
+    }
+
     public async Task<OrderEnvelope> CancelOrderAsync(string orderId, string expectedEtag, CancellationToken ct = default)
     {
         var doc = await TakeGuardedAsync(orderId, expectedEtag, ct).ConfigureAwait(false);

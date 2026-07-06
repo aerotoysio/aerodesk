@@ -108,4 +108,69 @@ public sealed class DocumentForgeIntegrationTests
         var cancelled = await svc.CancelOrderAsync(created.Order.OrderId, paid.Etag);
         Assert.Equal(OrderStatus.Cancelled, cancelled.Order.Status);
     }
+
+    /// <summary>
+    /// The call-centre servicing story on a real node: a family booking goes on
+    /// hold, is retrieved later by record locator, the outbound flight is moved
+    /// a day (Standard fare → change fee), and the held order is then paid —
+    /// with every step persisted in DocumentForge.
+    /// </summary>
+    [DfFact]
+    public async Task Held_MultiPax_Order_Retrieve_ChangeFlight_Then_Pay()
+    {
+        var database = $"airline_it_{Guid.NewGuid():N}";
+        await using var svc = Service(database);
+        await svc.ConnectAsync();
+        await svc.SeedInventoryAsync();
+
+        // --- Family shopping: 2 adults, 1 child, 1 infant, Standard fare ---
+        var travel = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30));
+        var offers = await svc.SearchOffersAsync(new ShopRequest
+        {
+            Legs = [new JourneyLeg("LHR", "DXB", travel)],
+            Adults = 2, Children = 1, Infants = 1,
+        });
+        var offer = offers.First(o => o.FareFamily == "Standard");
+
+        var held = await svc.CreateOrderAsync(offer.OfferId,
+        [
+            new Passenger { PassengerId = "ADT1", Type = Ptc.ADT, GivenName = "Ada", Surname = "Family", Email = "ada@example.com" },
+            new Passenger { PassengerId = "ADT2", Type = Ptc.ADT, GivenName = "Alan", Surname = "Family" },
+            new Passenger { PassengerId = "CHD1", Type = Ptc.CHD, GivenName = "Chris", Surname = "Family", DateOfBirth = new DateOnly(2019, 3, 2) },
+            new Passenger { PassengerId = "INF1", Type = Ptc.INF, GivenName = "Ivy", Surname = "Family", DateOfBirth = new DateOnly(2025, 11, 20) },
+        ]);
+        Assert.Equal(OrderStatus.PendingPayment, held.Order.Status); // on hold
+
+        // --- Later: agent retrieves the held order by its record locator ---
+        var retrieved = await svc.GetOrderAsync(held.Order.RecordLocator);
+        Assert.NotNull(retrieved);
+        Assert.Equal(4, retrieved!.Order.Passengers.Count);
+
+        // --- Change the flight to the next day (Standard: 75 USD x 3 seated pax) ---
+        var oldSegment = retrieved.Order.Segments[0];
+        var alternatives = await svc.GetAlternativeFlightsAsync(oldSegment, travel.AddDays(1));
+        Assert.NotEmpty(alternatives);
+
+        var rebooked = await svc.ChangeFlightAsync(
+            retrieved.Order.OrderId, oldSegment.SegmentId, alternatives[0], retrieved.Etag);
+        Assert.Contains(rebooked.Order.Segments, s => s.SegmentId == alternatives[0].SegmentId);
+        var changeFee = Assert.Single(rebooked.Order.Ancillaries, a => a.Code == "CHG");
+        Assert.Equal(75m * 3, changeFee.Price.Total);
+
+        // --- Pay the held order (total now includes the change fee) ---
+        var paid = await svc.PayOrderAsync(rebooked.Order.OrderId,
+            new PaymentToken("tok_family_visa", "9010"), rebooked.Etag);
+        Assert.Equal(OrderStatus.Ticketed, paid.Order.Status);
+        Assert.Equal(4, paid.Order.Documents.Count);
+        Assert.Equal(3, paid.Order.Documents.Count(d => d.Kind == "ETKT"));
+        Assert.Equal(1, paid.Order.Documents.Count(d => d.Kind == "EMD")); // infant
+
+        // --- The truth lives in DocumentForge: re-fetch and verify persistence ---
+        var final = await svc.GetOrderAsync(paid.Order.OrderId);
+        Assert.Equal(OrderStatus.Ticketed, final!.Order.Status);
+        Assert.Contains(final.Order.Segments, s => s.SegmentId == alternatives[0].SegmentId);
+        Assert.Contains(final.Order.Ancillaries, a => a.Code == "CHG");
+        Assert.Equal(paid.Order.TotalPrice.Total, final.Order.TotalPrice.Total);
+        Assert.Equal(4, final.Order.Documents.Count);
+    }
 }

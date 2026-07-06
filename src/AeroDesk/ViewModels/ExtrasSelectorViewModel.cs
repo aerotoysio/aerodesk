@@ -149,11 +149,13 @@ public sealed partial class ExtrasSelectorViewModel : ObservableObject
         }
     }
 
-    /// <summary>Turn the staged choices into one servicing change for the order.</summary>
+    /// <summary>Turn the staged choices into one servicing change for the order.
+    /// Fares with seat selection included (e.g. Flex) get their seats free.</summary>
     public async Task<OrderChange> BuildChangeAsync(string orderId)
     {
         var seats = _pendingSeats.Select(kv => new SeatAssignment(
-            kv.Key.SegmentId, kv.Key.PaxId, kv.Value.SeatNumber, kv.Value.Price)).ToList();
+            kv.Key.SegmentId, kv.Key.PaxId, kv.Value.SeatNumber,
+            SeatIncludedFor(kv.Key.PaxId) ? PriceDetail.Zero(kv.Value.Price.Currency) : kv.Value.Price)).ToList();
 
         var ancillaries = new List<Ancillary>();
         foreach (var (segmentId, paxId, code) in _pendingExtras)
@@ -165,6 +167,9 @@ public sealed partial class ExtrasSelectorViewModel : ObservableObject
         }
         return new OrderChange(orderId, ancillaries, [], seats);
     }
+
+    private bool SeatIncludedFor(string paxId) =>
+        _order?.Items.FirstOrDefault(i => i.PassengerIds.Contains(paxId))?.Fare.SeatSelectionIncluded == true;
 
     public void ClearPending()
     {
