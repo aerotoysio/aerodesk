@@ -38,6 +38,7 @@ public sealed class DocumentForgeRetailingService : IRetailingService
 
     public string Name => $"{_client.Descriptor.Name} ({_client.Descriptor.Url}, db '{_client.Descriptor.Database}')";
     public bool IsConnected => _client.IsConnected;
+    public RetailingCapabilities Capabilities => RetailingCapabilities.All;
 
     public Task ConnectAsync(CancellationToken ct = default) => _client.ConnectAsync(ct);
 

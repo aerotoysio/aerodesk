@@ -15,9 +15,23 @@ public sealed record OrderEnvelope(Order Order, string Etag);
 /// <summary>Tokenized payment input — token + last-4 only, never a PAN/CVV.</summary>
 public sealed record PaymentToken(string Token, string CardLast4, string Method = "CARD");
 
+/// <summary>What a retailing backend can do — the UI gates screens on these.</summary>
+[Flags]
+public enum RetailingCapabilities
+{
+    None = 0,
+    SeatsAndExtras = 1,     // seat maps + ancillaries can be written to orders
+    FlightChange = 2,       // rebooking (segment swap)
+    MultiLeg = 4,           // return / multi-city itineraries in one order
+    IssuesDocuments = 8,    // simulated e-tickets/EMDs on payment
+    Seeding = 16,           // bootstrap demo inventory
+    All = SeatsAndExtras | FlightChange | MultiLeg | IssuesDocuments | Seeding,
+}
+
 /// <summary>
 /// The Offers &amp; Orders seam the app binds to — analogue of Studio's IDfConnection.
-/// Implementations: DocumentForge-backed (HTTP) and in-memory (offline demo/tests).
+/// Implementations: DocumentForge-backed (HTTP), AeroBus-backed (the retailing
+/// backbone), and in-memory (offline demo/tests).
 /// Order mutations take the ETag from the envelope that produced the order and
 /// throw <see cref="Connections.EtagConflictException"/> when it has gone stale.
 /// </summary>
@@ -25,6 +39,7 @@ public interface IRetailingService : IAsyncDisposable
 {
     string Name { get; }
     bool IsConnected { get; }
+    RetailingCapabilities Capabilities { get; }
 
     Task ConnectAsync(CancellationToken ct = default);
 

@@ -145,7 +145,7 @@
 
             <!-- Servicing: change flight (rebook) -->
             <Expander Header="Change flight" Margin="0,0,0,12"
-                      Visibility="{Binding CanModify, Converter={StaticResource BoolToVis}}">
+                      Visibility="{Binding CanChangeFlight, Converter={StaticResource BoolToVis}}">
                 <Border Style="{StaticResource Card}" Margin="0,12,0,0">
                     <StackPanel>
                         <TextBlock Text="{Binding ChangeFeeLine}" Style="{StaticResource Hint}" Margin="0,0,0,10"/>
@@ -192,7 +192,7 @@
 
             <!-- Servicing: add seats/extras -->
             <Expander Header="Change seats &amp; add extras" Margin="0,0,0,12"
-                      Visibility="{Binding CanModify, Converter={StaticResource BoolToVis}}">
+                      Visibility="{Binding CanModifyExtras, Converter={StaticResource BoolToVis}}">
                 <StackPanel Margin="0,12,0,0">
                     <views:ExtrasSelectorView DataContext="{Binding Extras}"/>
                     <Button Content="Apply changes" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left"

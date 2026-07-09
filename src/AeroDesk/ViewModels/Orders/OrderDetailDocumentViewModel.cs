@@ -39,12 +39,18 @@ public sealed partial class OrderDetailDocumentViewModel : DocumentViewModel
         OnPropertyChanged(nameof(TotalLine));
         OnPropertyChanged(nameof(IsPendingPayment));
         OnPropertyChanged(nameof(CanModify));
+        OnPropertyChanged(nameof(CanModifyExtras));
+        OnPropertyChanged(nameof(CanChangeFlight));
         OnPropertyChanged(nameof(StatusBrushKey));
         Title = value is null ? "Order" : $"Order {value.Order.RecordLocator}";
     }
 
     public bool IsPendingPayment => Order?.Status == OrderStatus.PendingPayment;
     public bool CanModify => Order?.Status is OrderStatus.PendingPayment or OrderStatus.Paid or OrderStatus.Ticketed;
+
+    // Capability-gated servicing affordances (e.g. AeroBus takes no seat/extras writes).
+    public bool CanModifyExtras => CanModify && _service.Capabilities.HasFlag(RetailingCapabilities.SeatsAndExtras);
+    public bool CanChangeFlight => CanModify && _service.Capabilities.HasFlag(RetailingCapabilities.FlightChange);
 
     public string StatusBrushKey => Order?.Status switch
     {

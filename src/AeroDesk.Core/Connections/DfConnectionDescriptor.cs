@@ -1,20 +1,31 @@
 namespace AeroDesk.Core.Connections;
 
+public enum RetailingBackend { DocumentForge, AeroBus }
+
 /// <summary>
-/// Persisted metadata for a DocumentForge connection. The API key itself lives in
-/// the DPAPI <see cref="Settings.SecretStore"/>; only its id is stored here.
+/// Persisted metadata for a retailing connection (a DocumentForge node or an
+/// AeroBus backbone). Secrets (API key / password) live in the DPAPI
+/// <see cref="Settings.SecretStore"/>; only their id is stored here.
 /// </summary>
 public sealed record DfConnectionDescriptor
 {
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
     public string Name { get; init; } = "";
 
-    /// <summary>Base URL of the dfdb serve node, e.g. http://localhost:5001.</summary>
+    public RetailingBackend Backend { get; init; } = RetailingBackend.DocumentForge;
+
+    /// <summary>Base URL — dfdb serve node (e.g. http://localhost:5001) or AeroBus (http://localhost:5080).</summary>
     public string Url { get; init; } = "";
 
-    /// <summary>Database holding the airline collections.</summary>
+    /// <summary>DocumentForge only: database holding the airline collections.</summary>
     public string Database { get; init; } = "airline";
 
-    /// <summary>Secret-store id of the API key, or null for insecure dev nodes.</summary>
+    /// <summary>AeroBus only: company slug for agent login (e.g. "aerotoys").</summary>
+    public string CompanySlug { get; init; } = "aerotoys";
+
+    /// <summary>AeroBus only: agent login email.</summary>
+    public string Email { get; init; } = "";
+
+    /// <summary>Secret-store id of the DF API key / AeroBus password. Null for insecure dev nodes.</summary>
     public string? ApiKeySecretId { get; init; }
 }
