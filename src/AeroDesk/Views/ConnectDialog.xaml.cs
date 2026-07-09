@@ -21,14 +21,32 @@ public partial class ConnectDialog : Window
         SavedCombo.ItemsSource = _workspace.Connections;
         if (_workspace.Connections.Count > 0)
             SavedCombo.SelectedIndex = 0;
-        DfRadio.Checked += (_, _) => DfPanel.IsEnabled = true;
-        OfflineRadio.Checked += (_, _) => DfPanel.IsEnabled = false;
+        DfRadio.Checked += (_, _) => SyncPanels();
+        AeroBusRadio.Checked += (_, _) => SyncPanels();
+        OfflineRadio.Checked += (_, _) => SyncPanels();
+    }
+
+    private void SyncPanels()
+    {
+        if (DfPanel is null || AeroBusPanel is null) return;
+        DfPanel.Visibility = DfRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        AeroBusPanel.Visibility = AeroBusRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnSavedSelected(object sender, SelectionChangedEventArgs e)
     {
         if (SavedCombo.SelectedItem is not DfConnectionDescriptor conn) return;
         _selectedId = conn.Id;
+        if (conn.Backend == RetailingBackend.AeroBus)
+        {
+            AeroBusRadio.IsChecked = true;
+            AbUrlBox.Text = conn.Url;
+            AbSlugBox.Text = conn.CompanySlug;
+            AbEmailBox.Text = conn.Email;
+            AbPasswordBox.Password = _workspace.ResolveApiKey(conn) ?? "";
+            return;
+        }
+        DfRadio.IsChecked = true;
         NameBox.Text = conn.Name;
         UrlBox.Text = conn.Url;
         DatabaseBox.Text = conn.Database;
@@ -40,6 +58,35 @@ public partial class ConnectDialog : Window
         if (OfflineRadio.IsChecked == true)
         {
             Result = new ConnectRequest(new DfConnectionDescriptor { Name = "Offline demo" }, null, Save: false, Offline: true);
+            DialogResult = true;
+            return;
+        }
+
+        if (AeroBusRadio.IsChecked == true)
+        {
+            var abUrl = AbUrlBox.Text.Trim();
+            if (!Uri.TryCreate(abUrl, UriKind.Absolute, out var abUri) || (abUri.Scheme != "http" && abUri.Scheme != "https"))
+            {
+                ShowError("Enter a valid http(s) URL for AeroBus, e.g. http://localhost:5080.");
+                return;
+            }
+            if (AbEmailBox.Text.Trim().Length == 0 || AbSlugBox.Text.Trim().Length == 0)
+            {
+                ShowError("AeroBus needs a company slug and an agent email.");
+                return;
+            }
+            var abExisting = _selectedId is null ? null : _workspace.Connections.FirstOrDefault(c => c.Id == _selectedId);
+            var abDescriptor = (abExisting ?? new DfConnectionDescriptor()) with
+            {
+                Name = $"AeroBus {abUri.Host}:{abUri.Port} ({AbSlugBox.Text.Trim()})",
+                Backend = RetailingBackend.AeroBus,
+                Url = abUrl,
+                CompanySlug = AbSlugBox.Text.Trim(),
+                Email = AbEmailBox.Text.Trim(),
+            };
+            Result = new ConnectRequest(abDescriptor,
+                AbPasswordBox.Password.Length == 0 ? null : AbPasswordBox.Password,
+                Save: AbSaveCheck.IsChecked == true, Offline: false);
             DialogResult = true;
             return;
         }

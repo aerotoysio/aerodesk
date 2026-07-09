@@ -28,6 +28,7 @@ public sealed class InMemoryRetailingService : IRetailingService
 
     public string Name => "In-memory (offline demo)";
     public bool IsConnected { get; private set; }
+    public RetailingCapabilities Capabilities => RetailingCapabilities.All;
 
     public Task ConnectAsync(CancellationToken ct = default)
     {

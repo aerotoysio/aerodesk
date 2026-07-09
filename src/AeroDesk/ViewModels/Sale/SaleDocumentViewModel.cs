@@ -205,8 +205,16 @@ public sealed partial class SaleDocumentViewModel : DocumentViewModel
 
         var passengers = PassengerForms.Select(p => p.ToPassenger()).ToList();
         Envelope = await _service.CreateOrderAsync(SelectedOffer.OfferId, passengers);
-        await Extras.LoadAsync(Envelope.Order);
-        Stage = SaleStage.Extras;
+        if (_service.Capabilities.HasFlag(RetailingCapabilities.SeatsAndExtras))
+        {
+            await Extras.LoadAsync(Envelope.Order);
+            Stage = SaleStage.Extras;
+        }
+        else
+        {
+            // Backend doesn't take seat/extras writes (e.g. AeroBus) — straight to review.
+            Stage = SaleStage.Review;
+        }
     });
 
     // ---------------- Extras stage (seats + ancillaries) ----------------

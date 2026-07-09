@@ -8,7 +8,34 @@
         <TextBlock Text="Retailing backend" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
         <RadioButton x:Name="DfRadio" Content="DocumentForge node (order store)" IsChecked="True" Margin="0,0,0,4"/>
+        <RadioButton x:Name="AeroBusRadio" Content="AeroBus backbone (agent login)" Margin="0,0,0,4"/>
         <RadioButton x:Name="OfflineRadio" Content="Offline demo (in-memory, nothing persisted)" Margin="0,0,0,12"/>
+
+        <Border x:Name="AeroBusPanel" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="12"
+                Visibility="Collapsed" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="110"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="URL:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                <TextBox Grid.Row="0" Grid.Column="1" x:Name="AbUrlBox" Margin="0,0,0,8" Text="http://localhost:5080"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Company slug:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                <TextBox Grid.Row="1" Grid.Column="1" x:Name="AbSlugBox" Margin="0,0,0,8" Text="aerotoys"/>
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Agent email:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                <TextBox Grid.Row="2" Grid.Column="1" x:Name="AbEmailBox" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Password:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="AbPasswordBox" Margin="0,0,0,8"/>
+                <CheckBox Grid.Row="4" Grid.Column="1" x:Name="AbSaveCheck" Content="Save this connection" IsChecked="True"/>
+            </Grid>
+        </Border>
 
         <Border x:Name="DfPanel" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="12">
             <Grid>

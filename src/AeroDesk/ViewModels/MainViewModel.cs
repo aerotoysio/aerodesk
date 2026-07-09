@@ -51,7 +51,9 @@ public sealed partial class MainViewModel : ObservableObject
         if (request.Save)
             _workspace.UpsertConnection(request.Descriptor, request.ApiKey);
 
-        var service = new DocumentForgeRetailingService(request.Descriptor, request.ApiKey);
+        IRetailingService service = request.Descriptor.Backend == Core.Connections.RetailingBackend.AeroBus
+            ? new AeroBusRetailingService(request.Descriptor, request.ApiKey)
+            : new DocumentForgeRetailingService(request.Descriptor, request.ApiKey);
         await AttachAsync(service, request.Descriptor.Name);
     }
 
