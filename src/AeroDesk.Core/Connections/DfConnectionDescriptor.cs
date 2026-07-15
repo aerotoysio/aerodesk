@@ -28,4 +28,19 @@ public sealed record DfConnectionDescriptor
 
     /// <summary>Secret-store id of the DF API key / AeroBus password. Null for insecure dev nodes.</summary>
     public string? ApiKeySecretId { get; init; }
+
+    // ---- AeroBus departure control (DCS) auth: Keycloak staff login ----
+    // The operational surface authenticates the agent against the same Keycloak
+    // realm AeroBus validates (direct access grant), so board/depart actions carry
+    // per-agent identity. Optional — populated only for AeroBus connections that
+    // use departure control.
+
+    /// <summary>Keycloak base URL, e.g. http://localhost:8080.</summary>
+    public string KeycloakAuthority { get; init; } = "";
+
+    /// <summary>Keycloak realm, e.g. "aerotoys".</summary>
+    public string KeycloakRealm { get; init; } = "aerotoys";
+
+    /// <summary>Public Keycloak client id with direct-access-grants enabled.</summary>
+    public string KeycloakClientId { get; init; } = "aeroboard";
 }

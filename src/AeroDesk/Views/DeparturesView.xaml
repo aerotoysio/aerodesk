@@ -1,0 +1,60 @@
+<UserControl x:Class="AeroDesk.Views.DeparturesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource PageBackground}">
+    <ScrollViewer>
+        <StackPanel Margin="24" MaxWidth="1000" HorizontalAlignment="Left">
+            <TextBlock Text="Departure Control" Style="{StaticResource H1}"/>
+            <TextBlock Text="Flights leaving the station on the selected day. Open a flight to work its manifest."
+                       Style="{StaticResource Hint}" Margin="0,0,0,16"/>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel Margin="0,0,16,0">
+                        <TextBlock Text="Departure station" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding Station, UpdateSourceTrigger=PropertyChanged}" Width="120"
+                                 CharacterCasing="Upper" AutomationProperties.Name="Departure station"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,16,0">
+                        <TextBlock Text="Date" Style="{StaticResource FieldLabel}"/>
+                        <DatePicker SelectedDate="{Binding Date}" Width="140"/>
+                    </StackPanel>
+                    <Button Content="🔄  Refresh" Command="{Binding RefreshCommand}"
+                            Style="{StaticResource GhostButton}" VerticalAlignment="Bottom"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding Error}" Foreground="{StaticResource Danger}" TextWrapping="Wrap"
+                       Margin="2,0,0,8" Visibility="{Binding Error, Converter={StaticResource NullToCollapsed}}"/>
+
+            <Border Style="{StaticResource Card}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Departures" Style="{StaticResource H2}"/>
+                    <DataGrid x:Name="FlightsGrid" ItemsSource="{Binding Flights}"
+                              SelectedItem="{Binding SelectedFlight, Mode=TwoWay}"
+                              AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal" BorderThickness="0" Background="White"
+                              RowBackground="White" MinHeight="220"
+                              MouseDoubleClick="OnFlightDoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Flight" Binding="{Binding FlightNumber}" Width="90"/>
+                            <DataGridTextColumn Header="From" Binding="{Binding DepartureStation}" Width="60"/>
+                            <DataGridTextColumn Header="To" Binding="{Binding ArrivalStation}" Width="60"/>
+                            <DataGridTextColumn Header="Departs" Binding="{Binding DepartureLocal, StringFormat=HH:mm}" Width="80"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                            <DataGridTextColumn Header="Sold" Binding="{Binding Sold}" Width="60"/>
+                            <DataGridTextColumn Header="Capacity" Binding="{Binding Capacity}" Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Open flight →" Command="{Binding OpenFlightCommand}"
+                        Style="{StaticResource PrimaryButton}"/>
+                <TextBlock Text="Double-click a row to open it." Style="{StaticResource Hint}"
+                           VerticalAlignment="Center" Margin="12,0,0,0"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

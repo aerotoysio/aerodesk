@@ -44,6 +44,9 @@ public partial class ConnectDialog : Window
             AbSlugBox.Text = conn.CompanySlug;
             AbEmailBox.Text = conn.Email;
             AbPasswordBox.Password = _workspace.ResolveApiKey(conn) ?? "";
+            AbKcUrlBox.Text = conn.KeycloakAuthority;
+            AbKcRealmBox.Text = conn.KeycloakRealm;
+            AbKcClientBox.Text = conn.KeycloakClientId;
             return;
         }
         DfRadio.IsChecked = true;
@@ -83,6 +86,9 @@ public partial class ConnectDialog : Window
                 Url = abUrl,
                 CompanySlug = AbSlugBox.Text.Trim(),
                 Email = AbEmailBox.Text.Trim(),
+                KeycloakAuthority = AbKcUrlBox.Text.Trim(),
+                KeycloakRealm = string.IsNullOrWhiteSpace(AbKcRealmBox.Text) ? "aerotoys" : AbKcRealmBox.Text.Trim(),
+                KeycloakClientId = string.IsNullOrWhiteSpace(AbKcClientBox.Text) ? "aeroboard" : AbKcClientBox.Text.Trim(),
             };
             Result = new ConnectRequest(abDescriptor,
                 AbPasswordBox.Password.Length == 0 ? null : AbPasswordBox.Password,

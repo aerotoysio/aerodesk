@@ -163,3 +163,24 @@ Order management (retrieve, itinerary, change/cancel).
 4. **RuleForge tie-in:** default — simple in-app fare model now; RuleForge integration is a later,
    optional phase.
 5. **Agent auth:** default — `AgentContext` is a local profile (name/agency) for the demo.
+
+## 12. Departure Control (DCS) module — added 2026-07-15
+
+A second workbench folded into the same app (decision: shared shell/theme/settings/auth beats a
+separate app; role/permission-gated nav gives the persona separation). It drives AeroBus's
+`/operations` surface.
+
+- **Core:** `AeroDesk.Core.Operations` — `IOperationsService` seam with `AeroBusOperationsService`
+  (HTTP) and `InMemoryOperationsService` (offline demo). Domain records `DepartureFlight` /
+  `ManifestPassenger`.
+- **Auth — Keycloak staff login:** `Connections/KeycloakAuthClient` (resource-owner/direct-access
+  grant → OIDC token) so board/depart carry per-agent identity. Per-connection Keycloak fields on the
+  Connect dialog; blank Keycloak URL = retailing-only.
+- **UI:** a *Departure Control* nav action on AeroBus/offline connections → `DeparturesDocumentViewModel`
+  (station + day board) → `FlightDocumentViewModel` (status actions + passenger manifest with check-in /
+  board / board-all).
+- **Offline:** `--offline` / *Work Offline* seeds departures + manifests and runs the whole loop with no
+  backend.
+
+**Follow-up (backlog):** migrate the **retailing** `AeroBusRetailingService` off the removed
+`/admin/users/{slug}/authenticate` endpoint onto this same `KeycloakAuthClient`.
