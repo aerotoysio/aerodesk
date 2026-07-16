@@ -6,6 +6,7 @@
         xmlns:vm="clr-namespace:AeroDesk.ViewModels"
         xmlns:vmsale="clr-namespace:AeroDesk.ViewModels.Sale"
         xmlns:vmorders="clr-namespace:AeroDesk.ViewModels.Orders"
+        xmlns:vmops="clr-namespace:AeroDesk.ViewModels.Operations"
         xmlns:views="clr-namespace:AeroDesk.Views"
         Title="AeroDesk"
         Height="760" Width="1200"
@@ -60,6 +61,14 @@
 
         <DataTemplate DataType="{x:Type vmorders:OrderDetailDocumentViewModel}">
             <views:OrderDetailView/>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vmops:DeparturesDocumentViewModel}">
+            <views:DeparturesView/>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vmops:FlightDocumentViewModel}">
+            <views:FlightView/>
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:WelcomeDocumentViewModel}">

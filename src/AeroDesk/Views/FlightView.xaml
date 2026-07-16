@@ -1,0 +1,74 @@
+<UserControl x:Class="AeroDesk.Views.FlightView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource PageBackground}">
+    <ScrollViewer>
+        <StackPanel Margin="24" MaxWidth="1000" HorizontalAlignment="Left">
+
+            <!-- Flight header -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Flight.FlightNumber}" Style="{StaticResource H1}"/>
+                        <Border Style="{StaticResource Pill}" VerticalAlignment="Center" Margin="12,0,0,0">
+                            <TextBlock Text="{Binding Flight.Status}" FontWeight="SemiBold"
+                                       Foreground="{StaticResource AccentDark}"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,12">
+                        <Run Text="{Binding Flight.DepartureStation}"/><Run Text=" → "/><Run Text="{Binding Flight.ArrivalStation}"/>
+                        <Run Text="   •   departs "/><Run Text="{Binding Flight.DepartureLocal, StringFormat=ddd dd MMM HH:mm}"/>
+                    </TextBlock>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="🛎  Start Boarding" Command="{Binding StartBoardingCommand}"
+                                IsEnabled="{Binding CanStartBoarding}" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"/>
+                        <Button Content="🛫  Depart" Command="{Binding DepartCommand}"
+                                IsEnabled="{Binding CanDepart}" Style="{StaticResource GhostButton}" Margin="0,0,8,0"/>
+                        <Button Content="🔄  Refresh" Command="{Binding RefreshCommand}" Style="{StaticResource GhostButton}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Manifest -->
+            <Border Style="{StaticResource Card}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="Passenger manifest" Style="{StaticResource H2}"/>
+                        <Button Content="Board all checked-in" Command="{Binding BoardAllCommand}"
+                                Style="{StaticResource GhostButton}" Margin="16,0,0,0" Padding="10,4"/>
+                    </StackPanel>
+
+                    <!-- Per-passenger actions -->
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock Text="Seat" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Text="{Binding SeatInput, UpdateSourceTrigger=PropertyChanged}" Width="70"
+                                 CharacterCasing="Upper" ToolTip="e.g. 12C" AutomationProperties.Name="Seat"/>
+                        <Button Content="✔  Check in" Command="{Binding CheckInCommand}"
+                                Style="{StaticResource GhostButton}" Margin="8,0,0,0"/>
+                        <Button Content="🛫  Board" Command="{Binding BoardCommand}"
+                                Style="{StaticResource GhostButton}" Margin="8,0,0,0"/>
+                    </StackPanel>
+
+                    <DataGrid ItemsSource="{Binding Manifest}"
+                              SelectedItem="{Binding SelectedPassenger, Mode=TwoWay}"
+                              AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal" BorderThickness="0" Background="White"
+                              RowBackground="White" MinHeight="220">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Passenger" Binding="{Binding FullName}" Width="*"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding PaxType}" Width="70"/>
+                            <DataGridTextColumn Header="Seat" Binding="{Binding Seat}" Width="70"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                            <DataGridTextColumn Header="Seq" Binding="{Binding BoardingSequence}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
+
+            <TextBlock Text="{Binding StatusText}" Style="{StaticResource Hint}" Margin="2,0,0,4"
+                       Visibility="{Binding StatusText, Converter={StaticResource NullToCollapsed}}"/>
+            <TextBlock Text="{Binding Error}" Foreground="{StaticResource Danger}" TextWrapping="Wrap" Margin="2,0,0,0"
+                       Visibility="{Binding Error, Converter={StaticResource NullToCollapsed}}"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

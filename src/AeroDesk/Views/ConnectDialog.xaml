@@ -15,10 +15,14 @@
                 Visibility="Collapsed" Margin="0,0,0,8">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="110"/>
+                    <ColumnDefinition Width="120"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -33,7 +37,18 @@
                 <TextBox Grid.Row="2" Grid.Column="1" x:Name="AbEmailBox" Margin="0,0,0,8"/>
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Password:" VerticalAlignment="Center" Margin="0,0,8,8"/>
                 <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="AbPasswordBox" Margin="0,0,0,8"/>
-                <CheckBox Grid.Row="4" Grid.Column="1" x:Name="AbSaveCheck" Content="Save this connection" IsChecked="True"/>
+
+                <TextBlock Grid.Row="4" Grid.ColumnSpan="2" Text="Departure control (Keycloak staff login) — optional"
+                           FontWeight="SemiBold" Foreground="#6B7280" Margin="0,4,0,6"/>
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="Keycloak URL:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                <TextBox Grid.Row="5" Grid.Column="1" x:Name="AbKcUrlBox" Margin="0,0,0,8"
+                         ToolTip="e.g. http://localhost:8080 — leave blank to skip departure control"/>
+                <TextBlock Grid.Row="6" Grid.Column="0" Text="Realm:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                <TextBox Grid.Row="6" Grid.Column="1" x:Name="AbKcRealmBox" Margin="0,0,0,8" Text="aerotoys"/>
+                <TextBlock Grid.Row="7" Grid.Column="0" Text="Client id:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                <TextBox Grid.Row="7" Grid.Column="1" x:Name="AbKcClientBox" Margin="0,0,0,8" Text="aeroboard"/>
+
+                <CheckBox Grid.Row="8" Grid.Column="1" x:Name="AbSaveCheck" Content="Save this connection" IsChecked="True"/>
             </Grid>
         </Border>
 

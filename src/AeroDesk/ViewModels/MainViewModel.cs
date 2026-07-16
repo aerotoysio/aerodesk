@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Windows;
+using AeroDesk.Core.Operations;
 using AeroDesk.Core.Retailing;
 using AeroDesk.Core.Settings;
 using AeroDesk.Services;
@@ -44,85 +45,128 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (request.Offline)
         {
-            await AttachAsync(new InMemoryRetailingService(), "Offline demo (in-memory)");
+            await AttachAsync(new InMemoryRetailingService(), new InMemoryOperationsService(), "Offline demo (in-memory)");
             return;
         }
 
         if (request.Save)
             _workspace.UpsertConnection(request.Descriptor, request.ApiKey);
 
-        IRetailingService service = request.Descriptor.Backend == Core.Connections.RetailingBackend.AeroBus
-            ? new AeroBusRetailingService(request.Descriptor, request.ApiKey)
-            : new DocumentForgeRetailingService(request.Descriptor, request.ApiKey);
-        await AttachAsync(service, request.Descriptor.Name);
+        if (request.Descriptor.Backend == Core.Connections.RetailingBackend.AeroBus)
+        {
+            // AeroBus offers both surfaces. Departure control is wired only when the
+            // connection carries a Keycloak authority (its staff-login auth).
+            var retailing = new AeroBusRetailingService(request.Descriptor, request.ApiKey);
+            IOperationsService? operations = string.IsNullOrWhiteSpace(request.Descriptor.KeycloakAuthority)
+                ? null
+                : new AeroBusOperationsService(request.Descriptor, request.ApiKey);
+            await AttachAsync(retailing, operations, request.Descriptor.Name);
+        }
+        else
+        {
+            await AttachAsync(new DocumentForgeRetailingService(request.Descriptor, request.ApiKey), null, request.Descriptor.Name);
+        }
     }
 
     [RelayCommand]
-    private Task WorkOfflineAsync() => AttachAsync(new InMemoryRetailingService(), "Offline demo (in-memory)");
+    private Task WorkOfflineAsync() =>
+        AttachAsync(new InMemoryRetailingService(), new InMemoryOperationsService(), "Offline demo (in-memory)");
 
-    /// <summary>`--offline` startup: attach the in-memory airline and open a sale tab.</summary>
+    /// <summary>`--offline` startup: attach the in-memory airline and open Departure Control.</summary>
     public async Task StartOfflineDemoAsync()
     {
         await WorkOfflineAsync();
         if (Connections.OfType<ConnectionNodeViewModel>().LastOrDefault() is { } node)
-            OpenSale(node);
+            OpenDepartureControl(node);
     }
 
-    private async Task AttachAsync(IRetailingService service, string displayName)
+    /// <summary>Attach a backend's available surfaces. Each is connected independently
+    /// so a connection can still offer one when the other is unavailable (e.g. AeroBus
+    /// retailing while Keycloak departure control isn't configured, or vice versa).</summary>
+    private async Task AttachAsync(IRetailingService? retailing, IOperationsService? operations, string displayName)
     {
         StatusText = $"Connecting to {displayName}…";
-        try
-        {
-            await service.ConnectAsync();
-            Connections.Add(new ConnectionNodeViewModel(this, service, displayName));
-            StatusText = service is DocumentForgeRetailingService df && await HealthLineAsync(df) is { } health
-                ? $"Connected to {displayName} — {health}"
-                : $"Connected to {displayName}";
-        }
-        catch (Exception ex)
-        {
-            await service.DisposeAsync();
-            StatusText = "Connection failed.";
-            _dialogs.ShowError("Connect", ex.Message);
-        }
-    }
+        var problems = new List<string>();
 
-    private static async Task<string?> HealthLineAsync(DocumentForgeRetailingService service)
-    {
-        try
+        if (retailing is not null)
         {
-            var (healthy, status, version) = await service.GetHealthAsync();
-            return $"health: {status}{(version is null ? "" : $", v{version}")}{(healthy ? "" : " (degraded)")}";
+            try { await retailing.ConnectAsync(); }
+            catch (Exception ex) { await retailing.DisposeAsync(); retailing = null; problems.Add($"retailing ({ex.Message})"); }
         }
-        catch
+        if (operations is not null)
         {
-            return null;
+            try { await operations.ConnectAsync(); }
+            catch (Exception ex) { await operations.DisposeAsync(); operations = null; problems.Add($"departure control ({ex.Message})"); }
         }
+
+        if (retailing is null && operations is null)
+        {
+            StatusText = "Connection failed.";
+            _dialogs.ShowError("Connect", problems.Count > 0 ? string.Join("\n", problems) : "Nothing to connect.");
+            return;
+        }
+
+        Connections.Add(new ConnectionNodeViewModel(this, retailing, operations, displayName));
+        var caps = new List<string>();
+        if (retailing is not null) caps.Add("retailing");
+        if (operations is not null) caps.Add("departure control");
+        StatusText = $"Connected to {displayName} — {string.Join(" + ", caps)}"
+                     + (problems.Count > 0 ? $"; unavailable: {string.Join(", ", problems)}" : "");
     }
 
     public async Task DisconnectAsync(ConnectionNodeViewModel node)
     {
         Connections.Remove(node);
-        await node.Service.DisposeAsync();
+        if (node.Retailing is not null) await node.Retailing.DisposeAsync();
+        if (node.Operations is not null) await node.Operations.DisposeAsync();
         StatusText = $"Disconnected from {node.Name}.";
     }
 
     public void OpenSale(ConnectionNodeViewModel node)
     {
-        var sale = new Sale.SaleDocumentViewModel(node.Service, _dialogs);
+        if (node.Retailing is not { } service) return;
+        var sale = new Sale.SaleDocumentViewModel(service, _dialogs);
         Documents.Add(sale);
         ActiveDocument = sale;
     }
 
     public void OpenOrders(ConnectionNodeViewModel node)
     {
+        if (node.Retailing is not { } service) return;
         // Reuse an existing Orders tab for this connection if one is open.
         var existing = Documents.OfType<Orders.OrdersDocumentViewModel>()
-            .FirstOrDefault(d => ReferenceEquals(d.Service, node.Service));
+            .FirstOrDefault(d => ReferenceEquals(d.Service, service));
         if (existing is null)
         {
-            existing = new Orders.OrdersDocumentViewModel(node.Service, _dialogs,
-                envelope => OpenOrderDetail(node.Service, envelope));
+            existing = new Orders.OrdersDocumentViewModel(service, _dialogs,
+                envelope => OpenOrderDetail(service, envelope));
+            Documents.Add(existing);
+        }
+        ActiveDocument = existing;
+    }
+
+    public void OpenDepartureControl(ConnectionNodeViewModel node)
+    {
+        if (node.Operations is not { } ops) return;
+        // One departures board per connection.
+        var existing = Documents.OfType<Operations.DeparturesDocumentViewModel>()
+            .FirstOrDefault(d => ReferenceEquals(d.Operations, ops));
+        if (existing is null)
+        {
+            existing = new Operations.DeparturesDocumentViewModel(ops, flight => OpenFlight(ops, flight));
+            Documents.Add(existing);
+        }
+        ActiveDocument = existing;
+    }
+
+    public void OpenFlight(IOperationsService ops, DepartureFlight flight)
+    {
+        // One tab per flight — focus it if already open.
+        var existing = Documents.OfType<Operations.FlightDocumentViewModel>()
+            .FirstOrDefault(d => d.FlightId == flight.Id);
+        if (existing is null)
+        {
+            existing = new Operations.FlightDocumentViewModel(ops, _dialogs, flight);
             Documents.Add(existing);
         }
         ActiveDocument = existing;
@@ -143,10 +187,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task SeedDemoDataAsync(ConnectionNodeViewModel node)
     {
+        if (node.Retailing is not { } service) return;
         StatusText = "Seeding demo inventory…";
         try
         {
-            await node.Service.SeedInventoryAsync();
+            await service.SeedInventoryAsync();
             StatusText = $"Demo inventory ready on {node.Name}.";
         }
         catch (Exception ex)
@@ -197,6 +242,9 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task ShutdownAsync()
     {
         foreach (var node in Connections.OfType<ConnectionNodeViewModel>().ToList())
-            await node.Service.DisposeAsync();
+        {
+            if (node.Retailing is not null) await node.Retailing.DisposeAsync();
+            if (node.Operations is not null) await node.Operations.DisposeAsync();
+        }
     }
 }

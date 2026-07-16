@@ -1,11 +1,17 @@
 # AeroDesk
 
-A Windows desktop application for airline **call-centre agents** to sell travel using
-**IATA Modern Airline Retailing (Offers & Orders / NDC)**.
+A Windows desktop application for airline **agents** — two workbenches in one app:
 
-AeroDesk is a customer-facing app that uses **[DocumentForge](https://github.com/aerotoysio/documentforge)**
-as its order store. It is a separate, standalone product by aerotoysio, and shares the desktop
-architecture of DocumentForge Studio (WPF + AvalonDock + MVVM).
+- **Retailing** (call-centre): sell travel using **IATA Modern Airline Retailing (Offers & Orders / NDC)**.
+- **Departure Control (DCS)** (check-in counter / boarding gate): work a station's departures, manage
+  flight status, and check in / board passengers via **[AeroBus](https://github.com/aerotoysio/aerobus)**.
+
+The workbench shows the sections a connected backend supports (and, in future, the agent's role), so a
+call-centre agent and a gate agent share one installed app but see the tools relevant to them.
+
+AeroDesk uses **[DocumentForge](https://github.com/aerotoysio/documentforge)** as its retailing order
+store and **AeroBus** as the operational middle layer. It is a standalone product by aerotoysio, and
+shares the desktop architecture of DocumentForge Studio (WPF + AvalonDock + MVVM).
 
 See **[AERODESK_PLAN.md](AERODESK_PLAN.md)** for the full implementation plan and phase breakdown.
 
@@ -18,8 +24,25 @@ Planning / scaffolding. Phase 0 (solution scaffold + AvalonDock shell) is the fi
 - **WPF**, `net9.0-windows`, **MVVM** via CommunityToolkit.Mvvm.
 - **Dirkster.AvalonDock** docking workbench (nav tree + tabbed documents + status bar).
 - `AeroDesk` (WPF app) · `AeroDesk.Core` (models/services/settings, no WPF deps) · `AeroDesk.Core.Tests` (xUnit).
-- `IRetailingService` abstraction with a **DocumentForge** HTTP implementation and an **in-memory** mock.
+- `IRetailingService` abstraction (DocumentForge HTTP · AeroBus · in-memory mock) for retailing.
+- `IOperationsService` abstraction (AeroBus `/operations` · in-memory mock) for departure control.
 - Settings/secrets stored per-user under `%AppData%\AeroDesk` with DPAPI encryption.
+
+## Departure Control (DCS)
+
+The departure-control workbench (`AeroDesk.Core.Operations`) drives AeroBus's `/operations` surface:
+list a station's departures for a day → open a flight → work the **passenger manifest** (check in,
+assign seat, board) → change flight status (**Start Boarding**, **Depart**). `InMemoryOperationsService`
+runs the whole loop offline (`--offline` / *Work Offline*) with no backend, so it demos immediately.
+
+**Auth — Keycloak staff login.** Departure control authenticates the agent against the same Keycloak
+realm AeroBus validates (direct access grant → OIDC token), so every board/depart carries per-agent
+identity. Configure it per AeroBus connection in the Connect dialog (Keycloak URL / realm / client id);
+leave the Keycloak URL blank to connect for retailing only. AeroBus grants the operational permissions
+(`operations.view` / `operations.manage`) to the `editor` and `org-admin` roles out of the box.
+
+> Follow-up: the **retailing** side still uses AeroBus's removed agent-login endpoint and will migrate
+> to this same Keycloak client.
 
 ## DocumentForge
 

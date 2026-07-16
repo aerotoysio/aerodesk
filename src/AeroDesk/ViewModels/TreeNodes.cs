@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using AeroDesk.Core.Operations;
 using AeroDesk.Core.Retailing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -21,23 +22,31 @@ public abstract partial class TreeNodeViewModel : ObservableObject
     public ObservableCollection<TreeNodeViewModel> Children { get; } = [];
 }
 
-/// <summary>A connected retailing service (DocumentForge node or offline demo).</summary>
+/// <summary>A connected backend. A connection can offer retailing, departure
+/// control (DCS), or both — the child nodes reflect whatever this backend supports.</summary>
 public sealed partial class ConnectionNodeViewModel : TreeNodeViewModel
 {
     private readonly MainViewModel _main;
 
-    public IRetailingService Service { get; }
+    public IRetailingService? Retailing { get; }
+    public IOperationsService? Operations { get; }
 
-    public ConnectionNodeViewModel(MainViewModel main, IRetailingService service, string displayName)
+    public ConnectionNodeViewModel(MainViewModel main, IRetailingService? retailing, IOperationsService? operations, string displayName)
     {
         _main = main;
-        Service = service;
+        Retailing = retailing;
+        Operations = operations;
         Name = displayName;
         Glyph = "✈";
         IsExpanded = true;
 
-        Children.Add(new ActionNodeViewModel("🛒", "New Sale", () => _main.OpenSale(this)));
-        Children.Add(new ActionNodeViewModel("📋", "Orders", () => _main.OpenOrders(this)));
+        if (retailing is not null)
+        {
+            Children.Add(new ActionNodeViewModel("🛒", "New Sale", () => _main.OpenSale(this)));
+            Children.Add(new ActionNodeViewModel("📋", "Orders", () => _main.OpenOrders(this)));
+        }
+        if (operations is not null)
+            Children.Add(new ActionNodeViewModel("🛫", "Departure Control", () => _main.OpenDepartureControl(this)));
     }
 
     [RelayCommand]

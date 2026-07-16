@@ -10,6 +10,7 @@
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
             <conv:EnumMatchConverter x:Key="EnumMatch"/>
             <conv:RefundTextConverter x:Key="RefundText"/>
+            <conv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
