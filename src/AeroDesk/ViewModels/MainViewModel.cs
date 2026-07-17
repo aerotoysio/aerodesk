@@ -52,20 +52,29 @@ public sealed partial class MainViewModel : ObservableObject
         if (request.Save)
             _workspace.UpsertConnection(request.Descriptor, request.ApiKey);
 
-        if (request.Descriptor.Backend == Core.Connections.RetailingBackend.AeroBus)
+        // One agent, one login: sign in to Keycloak ONCE; retailing and departure
+        // control share the session (the token refreshes for the whole shift).
+        var auth = new Core.Connections.KeycloakAuthClient(
+            request.Descriptor.KeycloakAuthority,
+            request.Descriptor.KeycloakRealm,
+            request.Descriptor.KeycloakClientId);
+        try
         {
-            // AeroBus offers both surfaces. Departure control is wired only when the
-            // connection carries a Keycloak authority (its staff-login auth).
-            var retailing = new AeroBusRetailingService(request.Descriptor, request.ApiKey);
-            IOperationsService? operations = string.IsNullOrWhiteSpace(request.Descriptor.KeycloakAuthority)
-                ? null
-                : new AeroBusOperationsService(request.Descriptor, request.ApiKey);
-            await AttachAsync(retailing, operations, request.Descriptor.Name);
+            await auth.SignInAsync(request.Descriptor.Email, request.ApiKey ?? "");
         }
-        else
+        catch (Exception ex)
         {
-            await AttachAsync(new DocumentForgeRetailingService(request.Descriptor, request.ApiKey), null, request.Descriptor.Name);
+            auth.Dispose();
+            StatusText = "Sign-in failed.";
+            _dialogs.ShowError("Sign in", ex.Message);
+            return;
         }
+
+        await AttachAsync(
+            new AeroBusRetailingService(request.Descriptor, auth),
+            new AeroBusOperationsService(request.Descriptor, auth),
+            request.Descriptor.Name,
+            auth);
     }
 
     [RelayCommand]
@@ -81,9 +90,11 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Attach a backend's available surfaces. Each is connected independently
-    /// so a connection can still offer one when the other is unavailable (e.g. AeroBus
-    /// retailing while Keycloak departure control isn't configured, or vice versa).</summary>
-    private async Task AttachAsync(IRetailingService? retailing, IOperationsService? operations, string displayName)
+    /// so a connection can still offer one when the other is unavailable. When both
+    /// fail, the shared Keycloak session (if any) is disposed too.</summary>
+    private async Task AttachAsync(
+        IRetailingService? retailing, IOperationsService? operations, string displayName,
+        Core.Connections.KeycloakAuthClient? auth = null)
     {
         StatusText = $"Connecting to {displayName}…";
         var problems = new List<string>();
@@ -101,12 +112,13 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (retailing is null && operations is null)
         {
+            auth?.Dispose();
             StatusText = "Connection failed.";
             _dialogs.ShowError("Connect", problems.Count > 0 ? string.Join("\n", problems) : "Nothing to connect.");
             return;
         }
 
-        Connections.Add(new ConnectionNodeViewModel(this, retailing, operations, displayName));
+        Connections.Add(new ConnectionNodeViewModel(this, retailing, operations, displayName, auth));
         var caps = new List<string>();
         if (retailing is not null) caps.Add("retailing");
         if (operations is not null) caps.Add("departure control");
@@ -119,6 +131,7 @@ public sealed partial class MainViewModel : ObservableObject
         Connections.Remove(node);
         if (node.Retailing is not null) await node.Retailing.DisposeAsync();
         if (node.Operations is not null) await node.Operations.DisposeAsync();
+        node.Auth?.Dispose();
         StatusText = $"Disconnected from {node.Name}.";
     }
 
@@ -245,6 +258,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (node.Retailing is not null) await node.Retailing.DisposeAsync();
             if (node.Operations is not null) await node.Operations.DisposeAsync();
+            node.Auth?.Dispose();
         }
     }
 }

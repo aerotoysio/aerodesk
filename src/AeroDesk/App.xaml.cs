@@ -25,16 +25,20 @@ public partial class App : Application
         MainWindow.Show();
     }
 
-    /// <summary>First run: a ready-made connection to the local dev dfdb node so
-    /// the connection manager isn't empty on first launch.</summary>
+    /// <summary>First run: a ready-made AeroBus connection (local API + the demo
+    /// Keycloak realm — public endpoints, no secrets) so the sign-in dialog isn't
+    /// empty on first launch; the agent just adds their email/password.</summary>
     private static void SeedFirstRunConnection(AeroDeskWorkspace workspace)
     {
         if (workspace.Connections.Count > 0) return;
         workspace.UpsertConnection(new DfConnectionDescriptor
         {
-            Name = "Local DocumentForge (localhost:5001)",
-            Url = "http://localhost:5001",
-            Database = "airline",
+            Name = "AeroBus (localhost:5080)",
+            Backend = RetailingBackend.AeroBus,
+            Url = "http://localhost:5080",
+            KeycloakAuthority = "https://auth.demo.aerotoys.io",
+            KeycloakRealm = "aerotoys",
+            KeycloakClientId = "aeroboard",
         });
     }
 }

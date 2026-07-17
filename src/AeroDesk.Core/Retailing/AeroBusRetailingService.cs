@@ -10,8 +10,11 @@ namespace AeroDesk.Core.Retailing;
 
 /// <summary>
 /// Retailing over the AeroBus backbone (github.com/aerotoysio/aerobus):
-/// `/offer/shop` + `/order/create|retrieve|change`, Bearer JWT from the agent
-/// login (`POST /admin/users/{slug}/authenticate`).
+/// `/offer/shop` + `/order/create|retrieve|change`. Auth is the shared
+/// <see cref="KeycloakAuthClient"/> agent session — the SAME login that drives
+/// departure control — with a fresh bearer attached per request (refresh comes
+/// free from the auth client). The owner (the connection) signs in once;
+/// this service never authenticates on its own.
 ///
 /// Mapping notes (AeroBus semantics differ from the in-house model):
 /// - AeroBus books at create time (orders are born Confirmed, payment attached
@@ -31,7 +34,7 @@ public sealed class AeroBusRetailingService : IRetailingService
 
     private readonly HttpClient _http;
     private readonly DfConnectionDescriptor _descriptor;
-    private readonly string _password;
+    private readonly KeycloakAuthClient _auth;
 
     // Deferred-create drafts + orders seen this session (AeroBus has no list endpoint).
     private readonly object _gate = new();
@@ -42,12 +45,12 @@ public sealed class AeroBusRetailingService : IRetailingService
     private sealed record ShoppedOffer(Guid AeroBusOfferId, Guid SolutionId, Guid BundleId, Offer Offer);
     private sealed record DraftOrder(ShoppedOffer Source, IReadOnlyList<Passenger> Passengers, Order Draft);
 
-    public AeroBusRetailingService(DfConnectionDescriptor descriptor, string? password, HttpMessageHandler? handler = null)
+    public AeroBusRetailingService(DfConnectionDescriptor descriptor, KeycloakAuthClient auth, HttpMessageHandler? handler = null)
     {
         if (string.IsNullOrWhiteSpace(descriptor.Url))
             throw new ArgumentException("Descriptor must have a Url.", nameof(descriptor));
         _descriptor = descriptor;
-        _password = password ?? "";
+        _auth = auth;
         _http = handler is null ? new HttpClient() : new HttpClient(handler);
         _http.BaseAddress = new Uri(descriptor.Url.TrimEnd('/') + "/");
         _http.Timeout = TimeSpan.FromMinutes(2);
@@ -59,28 +62,24 @@ public sealed class AeroBusRetailingService : IRetailingService
 
     public string Currency { get; private set; } = "AED";
 
-    // ---- Connect: agent login mints the JWT ----
+    // ---- Connect: reachability only — the shared Keycloak session is the login ----
 
     public async Task ConnectAsync(CancellationToken ct = default)
     {
         using var health = await _http.GetAsync("health", ct).ConfigureAwait(false);
         if (!health.IsSuccessStatusCode)
             throw new DfHttpException(health.StatusCode, $"AeroBus health check failed ({(int)health.StatusCode}).");
-
-        using var response = await _http.PostAsJsonAsync(
-            $"admin/users/{Uri.EscapeDataString(_descriptor.CompanySlug)}/authenticate",
-            new { email = _descriptor.Email, password = _password }, Wire, ct).ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-            throw new DfHttpException(response.StatusCode,
-                $"AeroBus login failed for '{_descriptor.Email}' @ '{_descriptor.CompanySlug}': {Snip(body)}");
-
-        using var doc = JsonDocument.Parse(body);
-        var token = doc.RootElement.TryGetProperty("accessToken", out var t) ? t.GetString() : null;
-        if (string.IsNullOrEmpty(token))
-            throw new DfHttpException(response.StatusCode, "AeroBus login returned no access token.");
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        // Prove the session works end-to-end (and fail fast on a bad token).
+        await AttachTokenAsync(ct).ConfigureAwait(false);
         IsConnected = true;
+    }
+
+    /// <summary>Put a current access token on the client before an API call. The
+    /// auth client refreshes as needed, so long shifts don't 401 mid-sale.</summary>
+    private async Task AttachTokenAsync(CancellationToken ct)
+    {
+        var token = await _auth.GetAccessTokenAsync(ct).ConfigureAwait(false);
+        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
     // ---- Shopping ----
@@ -127,6 +126,7 @@ public sealed class AeroBusRetailingService : IRetailingService
             },
         };
 
+        await AttachTokenAsync(ct).ConfigureAwait(false);
         using var response = await _http.PostAsJsonAsync("offer/shop", payload, Wire, ct).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -240,6 +240,7 @@ public sealed class AeroBusRetailingService : IRetailingService
             },
         };
 
+        await AttachTokenAsync(ct).ConfigureAwait(false);
         using var response = await _http.PostAsJsonAsync("order/create", payload, Wire, ct).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.Conflict)
@@ -341,6 +342,7 @@ public sealed class AeroBusRetailingService : IRetailingService
 
     private async Task ChangeAsync(Guid orderGuid, string action, string reason, CancellationToken ct)
     {
+        await AttachTokenAsync(ct).ConfigureAwait(false);
         using var response = await _http.PostAsJsonAsync("order/change",
             new { orderId = orderGuid, action, reason }, Wire, ct).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
@@ -354,6 +356,7 @@ public sealed class AeroBusRetailingService : IRetailingService
     /// A prior snapshot (draft/known order) supplies flight times AeroBus doesn't embed.</summary>
     private async Task<OrderEnvelope?> RetrieveAsync(string orderId, string? lastName, Order? template, CancellationToken ct)
     {
+        await AttachTokenAsync(ct).ConfigureAwait(false);
         using var response = await _http.PostAsJsonAsync("order/retrieve",
             new { orderId, lastName }, Wire, ct).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
