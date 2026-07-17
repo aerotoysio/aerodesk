@@ -8,11 +8,13 @@ using AeroDesk.Core.Settings;
 namespace AeroDesk.Core.Operations;
 
 /// <summary>
-/// Departure control over the AeroBus <c>/operations</c> surface, authenticated with
-/// a Keycloak staff login (see <see cref="KeycloakAuthClient"/>). Maps the AeroBus
-/// flight + check-in JSON onto the app's <see cref="DepartureFlight"/> /
-/// <see cref="ManifestPassenger"/> records. The access token is fetched (and
-/// refreshed) per request so long-running sessions don't 401 mid-shift.
+/// Departure control over the AeroBus <c>/operations</c> surface. Auth is the
+/// shared <see cref="KeycloakAuthClient"/> agent session — the SAME login that
+/// drives retailing; the owner (the connection) signs in once and this service
+/// fetches a fresh access token per request (refresh comes free), so
+/// long-running gate sessions don't 401 mid-shift. Maps the AeroBus flight +
+/// check-in JSON onto the app's <see cref="DepartureFlight"/> /
+/// <see cref="ManifestPassenger"/> records.
 /// </summary>
 public sealed class AeroBusOperationsService : IOperationsService
 {
@@ -21,18 +23,16 @@ public sealed class AeroBusOperationsService : IOperationsService
     private readonly HttpClient _http;
     private readonly KeycloakAuthClient _auth;
     private readonly DfConnectionDescriptor _descriptor;
-    private readonly string _password;
 
-    public AeroBusOperationsService(DfConnectionDescriptor descriptor, string? password, HttpMessageHandler? handler = null)
+    public AeroBusOperationsService(DfConnectionDescriptor descriptor, KeycloakAuthClient auth, HttpMessageHandler? handler = null)
     {
         if (string.IsNullOrWhiteSpace(descriptor.Url))
             throw new ArgumentException("Descriptor must have a Url.", nameof(descriptor));
         _descriptor = descriptor;
-        _password = password ?? "";
+        _auth = auth;
         _http = handler is null ? new HttpClient() : new HttpClient(handler);
         _http.BaseAddress = new Uri(descriptor.Url.TrimEnd('/') + "/");
         _http.Timeout = TimeSpan.FromMinutes(2);
-        _auth = new KeycloakAuthClient(descriptor.KeycloakAuthority, descriptor.KeycloakRealm, descriptor.KeycloakClientId, handler);
     }
 
     public string Name => $"{_descriptor.Name} (AeroBus DCS, {_descriptor.Url})";
@@ -44,7 +44,8 @@ public sealed class AeroBusOperationsService : IOperationsService
         using var health = await _http.GetAsync("health", ct).ConfigureAwait(false);
         if (!health.IsSuccessStatusCode)
             throw new InvalidOperationException($"AeroBus health check failed ({(int)health.StatusCode}).");
-        await _auth.SignInAsync(_descriptor.Email, _password, ct).ConfigureAwait(false);
+        // Prove the shared session yields a token (sign-in happened at the connection).
+        _ = await _auth.GetAccessTokenAsync(ct).ConfigureAwait(false);
         IsConnected = true;
     }
 
@@ -98,7 +99,8 @@ public sealed class AeroBusOperationsService : IOperationsService
 
     public ValueTask DisposeAsync()
     {
-        _auth.Dispose();
+        // The auth client is owned by the connection (shared with retailing) —
+        // only dispose what this service created.
         _http.Dispose();
         IsConnected = false;
         return ValueTask.CompletedTask;

@@ -6,6 +6,13 @@ using AeroDesk.Services;
 
 namespace AeroDesk.Views;
 
+/// <summary>
+/// The agent sign-in: AeroBus URL + Keycloak (URL/realm/client) + agent
+/// email/password — ONE login for both workbenches (reservations and departure
+/// control) — or the offline in-memory demo. The saved list shows AeroBus
+/// connections only (the DocumentForge-direct mode was retired; old saved DF
+/// entries are ignored). The password is stored DPAPI-encrypted when saving.
+/// </summary>
 public partial class ConnectDialog : Window
 {
     private readonly AeroDeskWorkspace _workspace;
@@ -18,18 +25,18 @@ public partial class ConnectDialog : Window
         _workspace = workspace;
         InitializeComponent();
 
-        SavedCombo.ItemsSource = _workspace.Connections;
-        if (_workspace.Connections.Count > 0)
+        var saved = _workspace.Connections.Where(c => c.Backend == RetailingBackend.AeroBus).ToList();
+        SavedCombo.ItemsSource = saved;
+        if (saved.Count > 0)
             SavedCombo.SelectedIndex = 0;
-        DfRadio.Checked += (_, _) => SyncPanels();
+
         AeroBusRadio.Checked += (_, _) => SyncPanels();
         OfflineRadio.Checked += (_, _) => SyncPanels();
     }
 
     private void SyncPanels()
     {
-        if (DfPanel is null || AeroBusPanel is null) return;
-        DfPanel.Visibility = DfRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        if (AeroBusPanel is null) return;
         AeroBusPanel.Visibility = AeroBusRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -37,23 +44,14 @@ public partial class ConnectDialog : Window
     {
         if (SavedCombo.SelectedItem is not DfConnectionDescriptor conn) return;
         _selectedId = conn.Id;
-        if (conn.Backend == RetailingBackend.AeroBus)
-        {
-            AeroBusRadio.IsChecked = true;
-            AbUrlBox.Text = conn.Url;
-            AbSlugBox.Text = conn.CompanySlug;
-            AbEmailBox.Text = conn.Email;
-            AbPasswordBox.Password = _workspace.ResolveApiKey(conn) ?? "";
-            AbKcUrlBox.Text = conn.KeycloakAuthority;
-            AbKcRealmBox.Text = conn.KeycloakRealm;
-            AbKcClientBox.Text = conn.KeycloakClientId;
-            return;
-        }
-        DfRadio.IsChecked = true;
+        AeroBusRadio.IsChecked = true;
         NameBox.Text = conn.Name;
-        UrlBox.Text = conn.Url;
-        DatabaseBox.Text = conn.Database;
-        ApiKeyBox.Password = _workspace.ResolveApiKey(conn) ?? "";
+        AbUrlBox.Text = conn.Url;
+        AbEmailBox.Text = conn.Email;
+        AbPasswordBox.Password = _workspace.ResolveApiKey(conn) ?? "";
+        AbKcUrlBox.Text = conn.KeycloakAuthority;
+        AbKcRealmBox.Text = conn.KeycloakRealm;
+        AbKcClientBox.Text = conn.KeycloakClientId;
     }
 
     private void OnConnect(object sender, RoutedEventArgs e)
@@ -65,66 +63,42 @@ public partial class ConnectDialog : Window
             return;
         }
 
-        if (AeroBusRadio.IsChecked == true)
-        {
-            var abUrl = AbUrlBox.Text.Trim();
-            if (!Uri.TryCreate(abUrl, UriKind.Absolute, out var abUri) || (abUri.Scheme != "http" && abUri.Scheme != "https"))
-            {
-                ShowError("Enter a valid http(s) URL for AeroBus, e.g. http://localhost:5080.");
-                return;
-            }
-            if (AbEmailBox.Text.Trim().Length == 0 || AbSlugBox.Text.Trim().Length == 0)
-            {
-                ShowError("AeroBus needs a company slug and an agent email.");
-                return;
-            }
-            var abExisting = _selectedId is null ? null : _workspace.Connections.FirstOrDefault(c => c.Id == _selectedId);
-            var abDescriptor = (abExisting ?? new DfConnectionDescriptor()) with
-            {
-                Name = $"AeroBus {abUri.Host}:{abUri.Port} ({AbSlugBox.Text.Trim()})",
-                Backend = RetailingBackend.AeroBus,
-                Url = abUrl,
-                CompanySlug = AbSlugBox.Text.Trim(),
-                Email = AbEmailBox.Text.Trim(),
-                KeycloakAuthority = AbKcUrlBox.Text.Trim(),
-                KeycloakRealm = string.IsNullOrWhiteSpace(AbKcRealmBox.Text) ? "aerotoys" : AbKcRealmBox.Text.Trim(),
-                KeycloakClientId = string.IsNullOrWhiteSpace(AbKcClientBox.Text) ? "aeroboard" : AbKcClientBox.Text.Trim(),
-            };
-            Result = new ConnectRequest(abDescriptor,
-                AbPasswordBox.Password.Length == 0 ? null : AbPasswordBox.Password,
-                Save: AbSaveCheck.IsChecked == true, Offline: false);
-            DialogResult = true;
-            return;
-        }
-
-        var url = UrlBox.Text.Trim();
-        var database = DatabaseBox.Text.Trim();
+        var url = AbUrlBox.Text.Trim();
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
         {
-            ShowError("Enter a valid http(s) URL, e.g. http://localhost:5001.");
+            ShowError("Enter a valid http(s) URL for AeroBus, e.g. http://localhost:5080.");
             return;
         }
-        if (database.Length == 0)
+        var kcUrl = AbKcUrlBox.Text.Trim();
+        if (!Uri.TryCreate(kcUrl, UriKind.Absolute, out var kcUri) || (kcUri.Scheme != "http" && kcUri.Scheme != "https"))
         {
-            ShowError("Enter a database name (e.g. airline).");
+            ShowError("Enter a valid Keycloak URL — it is the agent login, e.g. https://auth.demo.aerotoys.io.");
+            return;
+        }
+        if (AbEmailBox.Text.Trim().Length == 0 || AbPasswordBox.Password.Length == 0)
+        {
+            ShowError("Enter your agent email and password (your organisation admin creates accounts in AeroStudio).");
             return;
         }
 
         var name = NameBox.Text.Trim();
-        if (name.Length == 0) name = $"{uri.Host}:{uri.Port} ({database})";
+        if (name.Length == 0) name = $"AeroBus {uri.Host}:{uri.Port}";
 
         // Keep the saved connection's identity (and secret id) when it was picked from the list.
         var existing = _selectedId is null ? null : _workspace.Connections.FirstOrDefault(c => c.Id == _selectedId);
         var descriptor = (existing ?? new DfConnectionDescriptor()) with
         {
             Name = name,
+            Backend = RetailingBackend.AeroBus,
             Url = url,
-            Database = database,
+            Email = AbEmailBox.Text.Trim(),
+            KeycloakAuthority = kcUrl,
+            KeycloakRealm = string.IsNullOrWhiteSpace(AbKcRealmBox.Text) ? "aerotoys" : AbKcRealmBox.Text.Trim(),
+            KeycloakClientId = string.IsNullOrWhiteSpace(AbKcClientBox.Text) ? "aeroboard" : AbKcClientBox.Text.Trim(),
         };
 
-        var apiKey = ApiKeyBox.Password;
-        Result = new ConnectRequest(descriptor, apiKey.Length == 0 ? null : apiKey,
-            Save: SaveCheck.IsChecked == true, Offline: false);
+        Result = new ConnectRequest(descriptor, AbPasswordBox.Password,
+            Save: AbSaveCheck.IsChecked == true, Offline: false);
         DialogResult = true;
     }
 

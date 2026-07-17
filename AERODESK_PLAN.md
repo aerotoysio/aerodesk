@@ -184,3 +184,22 @@ separate app; role/permission-gated nav gives the persona separation). It drives
 
 **Follow-up (backlog):** migrate the **retailing** `AeroBusRetailingService` off the removed
 `/admin/users/{slug}/authenticate` endpoint onto this same `KeycloakAuthClient`.
+
+## 13. Single Keycloak agent login, AeroBus-only — 2026-07-17
+
+The §12 follow-up landed, plus a simplification: AeroDesk is an **AeroBus client**
+(the DocumentForge-direct retailing mode is retired from the UI; classes + gated
+integration tests remain in Core for now).
+
+- One `KeycloakAuthClient` per connection, owned by `ConnectionNodeViewModel`:
+  `MainViewModel.ConnectAsync` signs in ONCE and both `AeroBusRetailingService`
+  and `AeroBusOperationsService` share the session, attaching a refreshed bearer
+  per request. The legacy `/admin/users/{slug}/authenticate` call is gone; the
+  company slug field is gone (the org comes from the token).
+- Connect dialog = one card: AeroBus URL + Keycloak URL/realm/client + agent
+  email/password (all required), or the offline demo. First-run seed points at
+  localhost:5080 + the demo realm.
+- Agent accounts are created/approved by org admins in AeroStudio.
+
+**Backlog:** agent self-registration + approval queue (aerostudio); delete the
+DocumentForge retailing code path entirely once nothing references it.

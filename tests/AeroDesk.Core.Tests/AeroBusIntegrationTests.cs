@@ -7,39 +7,54 @@ namespace AeroDesk.Core.Tests;
 
 /// <summary>
 /// End-to-end against a REAL AeroBus backbone (github.com/aerotoysio/aerobus).
-/// Requires a running stack (dfdb + RuleForge + AeroBus) with the `aerotoys`
-/// tenant + SYD-MEL catalogue seeded. Skipped unless AERODESK_AEROBUS_URL is
-/// set (e.g. http://localhost:5080); agent login defaults to
-/// agent@aerotoys.io / aerotoys (override with AERODESK_AEROBUS_EMAIL/_SLUG).
+/// Requires a running stack (dfdb + RuleForge + AeroBus + Keycloak) with a
+/// catalogue-seeded tenant. Skipped unless AERODESK_AEROBUS_URL and
+/// AERODESK_KEYCLOAK_URL are set; the agent signs in with
+/// AERODESK_AEROBUS_EMAIL / AERODESK_AEROBUS_PASSWORD against realm
+/// AERODESK_KEYCLOAK_REALM (default aerotoys), client aeroboard — the same
+/// single Keycloak login the app uses for retailing AND departure control.
 /// </summary>
 public sealed class AeroBusIntegrationTests
 {
     private static string? AeroBusUrl => Environment.GetEnvironmentVariable("AERODESK_AEROBUS_URL");
+    private static string? KeycloakUrl => Environment.GetEnvironmentVariable("AERODESK_KEYCLOAK_URL");
 
     private sealed class AbFactAttribute : FactAttribute
     {
         public AbFactAttribute()
         {
-            if (string.IsNullOrEmpty(AeroBusUrl))
-                Skip = "Set AERODESK_AEROBUS_URL to a running AeroBus to run AeroBus integration tests.";
+            if (string.IsNullOrEmpty(AeroBusUrl) || string.IsNullOrEmpty(KeycloakUrl))
+                Skip = "Set AERODESK_AEROBUS_URL + AERODESK_KEYCLOAK_URL to run AeroBus integration tests.";
         }
     }
 
-    private static AeroBusRetailingService Service() => new(
-        new DfConnectionDescriptor
-        {
-            Name = "it",
-            Backend = RetailingBackend.AeroBus,
-            Url = AeroBusUrl!,
-            CompanySlug = Environment.GetEnvironmentVariable("AERODESK_AEROBUS_SLUG") ?? "aerotoys",
-            Email = Environment.GetEnvironmentVariable("AERODESK_AEROBUS_EMAIL") ?? "agent@aerotoys.io",
-        },
-        password: "x");
+    private static async Task<(AeroBusRetailingService Service, KeycloakAuthClient Auth)> ServiceAsync()
+    {
+        var auth = new KeycloakAuthClient(
+            KeycloakUrl!,
+            Environment.GetEnvironmentVariable("AERODESK_KEYCLOAK_REALM") ?? "aerotoys",
+            "aeroboard");
+        await auth.SignInAsync(
+            Environment.GetEnvironmentVariable("AERODESK_AEROBUS_EMAIL") ?? "demo@demo.air",
+            Environment.GetEnvironmentVariable("AERODESK_AEROBUS_PASSWORD") ?? "demo1234");
+
+        var service = new AeroBusRetailingService(
+            new DfConnectionDescriptor
+            {
+                Name = "it",
+                Backend = RetailingBackend.AeroBus,
+                Url = AeroBusUrl!,
+            },
+            auth);
+        return (service, auth);
+    }
 
     [AbFact]
     public async Task Shop_Book_Pay_Retrieve_Cancel_On_AeroBus()
     {
-        await using var svc = Service();
+        var (svc, auth) = await ServiceAsync();
+        await using var _ = svc;
+        using var __ = auth;
         await svc.ConnectAsync();
         Assert.True(svc.IsConnected);
         Assert.Equal(RetailingCapabilities.None, svc.Capabilities);

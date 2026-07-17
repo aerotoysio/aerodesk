@@ -35,14 +35,16 @@ list a station's departures for a day → open a flight → work the **passenger
 assign seat, board) → change flight status (**Start Boarding**, **Depart**). `InMemoryOperationsService`
 runs the whole loop offline (`--offline` / *Work Offline*) with no backend, so it demos immediately.
 
-**Auth — Keycloak staff login.** Departure control authenticates the agent against the same Keycloak
-realm AeroBus validates (direct access grant → OIDC token), so every board/depart carries per-agent
-identity. Configure it per AeroBus connection in the Connect dialog (Keycloak URL / realm / client id);
-leave the Keycloak URL blank to connect for retailing only. AeroBus grants the operational permissions
+**Auth — one Keycloak agent login for everything.** The agent signs in once (direct access grant
+against the realm AeroBus validates, client `aeroboard`) and that session drives **both** workbenches —
+reservations and departure control — with automatic token refresh across the shift. Every sale,
+check-in, board and depart carries per-agent identity. Agent accounts are created and approved by the
+organisation's admin in **AeroStudio** (Users page); Keycloak self-registration stays off
+(a self-register + approval queue is a noted follow-up). AeroBus grants the operational permissions
 (`operations.view` / `operations.manage`) to the `editor` and `org-admin` roles out of the box.
 
-> Follow-up: the **retailing** side still uses AeroBus's removed agent-login endpoint and will migrate
-> to this same Keycloak client.
+The DocumentForge-direct retailing mode was retired from the UI — AeroBus is the backend
+(the offline in-memory demo remains for zero-backend use).
 
 ## DocumentForge
 

@@ -23,19 +23,24 @@ public abstract partial class TreeNodeViewModel : ObservableObject
 }
 
 /// <summary>A connected backend. A connection can offer retailing, departure
-/// control (DCS), or both — the child nodes reflect whatever this backend supports.</summary>
+/// control (DCS), or both — the child nodes reflect whatever this backend supports.
+/// Owns the shared Keycloak agent session (one login for both workbenches).</summary>
 public sealed partial class ConnectionNodeViewModel : TreeNodeViewModel
 {
     private readonly MainViewModel _main;
 
     public IRetailingService? Retailing { get; }
     public IOperationsService? Operations { get; }
+    public AeroDesk.Core.Connections.KeycloakAuthClient? Auth { get; }
 
-    public ConnectionNodeViewModel(MainViewModel main, IRetailingService? retailing, IOperationsService? operations, string displayName)
+    public ConnectionNodeViewModel(
+        MainViewModel main, IRetailingService? retailing, IOperationsService? operations,
+        string displayName, AeroDesk.Core.Connections.KeycloakAuthClient? auth = null)
     {
         _main = main;
         Retailing = retailing;
         Operations = operations;
+        Auth = auth;
         Name = displayName;
         Glyph = "✈";
         IsExpanded = true;
