@@ -47,7 +47,10 @@ public sealed class KeycloakAuthClient : IDisposable
             ["client_id"] = _clientId,
             ["username"] = email,
             ["password"] = password,
-            ["scope"] = "openid",
+            // "organization" is a dynamic Keycloak scope: without requesting it the
+            // token carries no org-membership claim, and AeroBus then cannot resolve
+            // the agent's companyId (tenant routing + org-scoped permissions fail).
+            ["scope"] = "openid organization",
         }, ct).ConfigureAwait(false);
     }
 
