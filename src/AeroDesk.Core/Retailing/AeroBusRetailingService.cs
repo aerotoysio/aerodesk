@@ -36,7 +36,7 @@ public sealed class AeroBusRetailingService : IRetailingService
     private readonly DfConnectionDescriptor _descriptor;
     private readonly KeycloakAuthClient _auth;
 
-    // Deferred-create drafts + orders seen this session (AeroBus has no list endpoint).
+    // Deferred-create drafts + orders seen this session (fallback for the list when offline).
     private readonly object _gate = new();
     private readonly Dictionary<string, DraftOrder> _drafts = [];
     private readonly Dictionary<string, OrderEnvelope> _sessionOrders = [];
@@ -171,12 +171,87 @@ public sealed class AeroBusRetailingService : IRetailingService
         return offers;
     }
 
-    public Task<Offer?> RepriceOfferAsync(string offerId, CancellationToken ct = default)
+    public async Task<Offer?> RepriceOfferAsync(string offerId, CancellationToken ct = default)
     {
-        // AeroBus offers hold server-side; the shopped snapshot is the price.
+        ShoppedOffer? shopped;
         lock (_gate)
         {
-            return Task.FromResult(_shoppedOffers.TryGetValue(offerId, out var shopped) ? shopped.Offer : null);
+            _shoppedOffers.TryGetValue(offerId, out shopped);
+        }
+        if (shopped is null) return null;
+
+        // Real server re-price: POST offer/price re-runs the pricing decision
+        // for the shopped offer; find our solution+bundle in the response and
+        // refresh the cached price. Any failure degrades to the shopped snapshot.
+        try
+        {
+            await AttachTokenAsync(ct).ConfigureAwait(false);
+            using var response = await _http.PostAsJsonAsync("offer/price",
+                new { offerId = shopped.AeroBusOfferId }, Wire, ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) return shopped.Offer;
+
+            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("originDestinations", out var ods) ||
+                ods.ValueKind != JsonValueKind.Array)
+                return shopped.Offer;
+
+            foreach (var od in ods.EnumerateArray())
+            {
+                if (!od.TryGetProperty("flightSolutions", out var solutions) ||
+                    solutions.ValueKind != JsonValueKind.Array) continue;
+                foreach (var solution in solutions.EnumerateArray())
+                {
+                    if (solution.GetProperty("id").GetGuid() != shopped.SolutionId) continue;
+                    if (!solution.TryGetProperty("bundles", out var bundles) ||
+                        bundles.ValueKind != JsonValueKind.Array) continue;
+                    foreach (var bundle in bundles.EnumerateArray())
+                    {
+                        if (bundle.GetProperty("id").GetGuid() != shopped.BundleId) continue;
+                        if (!bundle.TryGetProperty("price", out var price) ||
+                            !price.TryGetProperty("total", out var total) ||
+                            total.ValueKind != JsonValueKind.Number)
+                            return shopped.Offer;
+
+                        var currency = price.TryGetProperty("currency", out var cur) && cur.ValueKind == JsonValueKind.String
+                            ? cur.GetString() ?? shopped.Offer.Currency
+                            : shopped.Offer.Currency;
+                        var newTotal = total.GetDecimal();
+                        var newBase = price.TryGetProperty("base", out var b) && b.ValueKind == JsonValueKind.Number
+                            ? b.GetDecimal()
+                            : newTotal;
+                        var perPax = new PriceDetail(newBase, newTotal - newBase, currency);
+
+                        // TotalPrice derives from Items — rebuild each item with the
+                        // fresh per-pax price (INF keeps its 10% factor, per shop).
+                        var items = shopped.Offer.Items
+                            .Select(i =>
+                            {
+                                var factor = i.PassengerType == Ptc.INF ? 0.1m : 1m;
+                                return i with
+                                {
+                                    PricePerPassenger = new PriceDetail(
+                                        Math.Round(perPax.BaseAmount * factor, 2),
+                                        Math.Round(perPax.Taxes * factor, 2),
+                                        currency),
+                                };
+                            })
+                            .ToList();
+                        var repriced = shopped.Offer with { Items = items, Currency = currency };
+                        lock (_gate)
+                        {
+                            _shoppedOffers[offerId] = shopped with { Offer = repriced };
+                        }
+                        return repriced;
+                    }
+                }
+            }
+            return shopped.Offer;
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            // Pricing engine down → the shopped snapshot stands.
+            return shopped.Offer;
         }
     }
 
@@ -277,16 +352,41 @@ public sealed class AeroBusRetailingService : IRetailingService
         return await RetrieveAsync(orderIdOrLocator, lastName: null, template: null, ct).ConfigureAwait(false);
     }
 
-    public Task<IReadOnlyList<OrderEnvelope>> ListOrdersAsync(int limit = 25, CancellationToken ct = default)
+    public async Task<IReadOnlyList<OrderEnvelope>> ListOrdersAsync(int limit = 25, CancellationToken ct = default)
     {
-        // AeroBus has no order-list endpoint; show what this session touched.
+        // Real server list (GET order/ — newest first, company-scoped). The
+        // order aggregate embeds its passengers, so it doubles as the retrieve
+        // view for mapping. Falls back to session-touched orders when offline.
+        try
+        {
+            await AttachTokenAsync(ct).ConfigureAwait(false);
+            using var response = await _http.GetAsync($"order/?pageNumber=1&pageSize={Math.Clamp(limit, 1, 200)}", ct)
+                .ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) return SessionOrders(limit);
+
+            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return SessionOrders(limit);
+
+            var result = new List<OrderEnvelope>();
+            foreach (var orderEl in doc.RootElement.EnumerateArray())
+                result.Add(MapOrder(orderEl, orderEl, FindSessionTemplate(orderEl)));
+            return result;
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            return SessionOrders(limit);
+        }
+    }
+
+    private IReadOnlyList<OrderEnvelope> SessionOrders(int limit)
+    {
         lock (_gate)
         {
-            IReadOnlyList<OrderEnvelope> result = _sessionOrders.Values
+            return _sessionOrders.Values
                 .OrderByDescending(o => o.Order.CreatedAtUtc)
                 .Take(limit)
                 .ToList();
-            return Task.FromResult(result);
         }
     }
 
