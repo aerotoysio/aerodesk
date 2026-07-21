@@ -43,12 +43,6 @@ public sealed partial class MainViewModel : ObservableObject
         var request = _dialogs.ShowConnectDialog();
         if (request is null) return;
 
-        if (request.Offline)
-        {
-            await AttachAsync(new InMemoryRetailingService(), new InMemoryOperationsService(), "Offline demo (in-memory)");
-            return;
-        }
-
         if (request.Save)
             _workspace.UpsertConnection(request.Descriptor, request.ApiKey);
 
@@ -75,18 +69,6 @@ public sealed partial class MainViewModel : ObservableObject
             new AeroBusOperationsService(request.Descriptor, auth),
             request.Descriptor.Name,
             auth);
-    }
-
-    [RelayCommand]
-    private Task WorkOfflineAsync() =>
-        AttachAsync(new InMemoryRetailingService(), new InMemoryOperationsService(), "Offline demo (in-memory)");
-
-    /// <summary>`--offline` startup: attach the in-memory airline and open Departure Control.</summary>
-    public async Task StartOfflineDemoAsync()
-    {
-        await WorkOfflineAsync();
-        if (Connections.OfType<ConnectionNodeViewModel>().LastOrDefault() is { } node)
-            OpenDepartureControl(node);
     }
 
     /// <summary>Attach a backend's available surfaces. Each is connected independently

@@ -78,16 +78,14 @@
                     <TextBlock Text="Airline call-centre agent desktop — IATA Offers &amp; Orders (NDC)"
                                FontSize="14" Foreground="Gray" Margin="0,4,0,24"/>
                     <TextBlock FontSize="13" TextWrapping="Wrap" Margin="0,0,0,12">
-                        Connect to a DocumentForge node to sell against the order store, or work
-                        offline with the built-in demo airline. Then open <Run FontWeight="SemiBold" Text="New Sale"/>
-                        to search one-way, return, or multi-city journeys, compare branded fares, pick
-                        seats on the cabin map, and take (simulated) payment — or <Run FontWeight="SemiBold" Text="Orders"/>
+                        Sign in with your agent account to connect to AeroBus. Then open
+                        <Run FontWeight="SemiBold" Text="New Sale"/>
+                        to search flights, compare branded fares and take (simulated) payment —
+                        or <Run FontWeight="SemiBold" Text="Orders"/>
                         to retrieve, change, and cancel existing bookings.
                     </TextBlock>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <Button Content="🔌  Connect…" Command="{Binding DataContext.ConnectCommand,
-                                RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,6" Margin="0,0,12,0"/>
-                        <Button Content="✈  Work Offline" Command="{Binding DataContext.WorkOfflineCommand,
                                 RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,6"/>
                     </StackPanel>
                     <TextBlock FontSize="11" Foreground="#999" TextWrapping="Wrap" Margin="0,28,0,0">
@@ -104,7 +102,6 @@
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
                 <MenuItem Header="_Connect…" Command="{Binding ConnectCommand}"/>
-                <MenuItem Header="Work _Offline" Command="{Binding WorkOfflineCommand}"/>
                 <Separator/>
                 <MenuItem Header="_Export Settings…" Command="{Binding ExportSettingsCommand}"/>
                 <MenuItem Header="_Import Settings…" Command="{Binding ImportSettingsCommand}"/>
@@ -119,8 +116,7 @@
         <!-- Toolbar -->
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar>
-                <Button Command="{Binding ConnectCommand}" ToolTip="Connect to a retailing backend">🔌 Connect</Button>
-                <Button Command="{Binding WorkOfflineCommand}" ToolTip="Offline demo airline (in-memory)">✈ Work Offline</Button>
+                <Button Command="{Binding ConnectCommand}" ToolTip="Sign in to AeroBus">🔌 Connect</Button>
             </ToolBar>
         </ToolBarTray>
 

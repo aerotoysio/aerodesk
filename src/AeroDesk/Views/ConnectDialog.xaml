@@ -9,9 +9,6 @@
         <TextBlock Text="One Keycloak login runs both workbenches — reservations and departure control."
                    Foreground="#6B7280" FontSize="12" Margin="0,0,0,10"/>
 
-        <RadioButton x:Name="AeroBusRadio" Content="AeroBus (agent login via Keycloak)" IsChecked="True" Margin="0,0,0,4"/>
-        <RadioButton x:Name="OfflineRadio" Content="Offline demo (in-memory, nothing persisted)" Margin="0,0,0,12"/>
-
         <Border x:Name="AeroBusPanel" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Padding="12"
                 Margin="0,0,0,8">
             <Grid>

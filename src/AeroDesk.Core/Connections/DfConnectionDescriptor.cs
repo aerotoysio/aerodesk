@@ -1,7 +1,5 @@
 namespace AeroDesk.Core.Connections;
 
-public enum RetailingBackend { DocumentForge, AeroBus }
-
 /// <summary>
 /// Persisted metadata for a retailing connection (a DocumentForge node or an
 /// AeroBus backbone). Secrets (API key / password) live in the DPAPI
@@ -11,8 +9,6 @@ public sealed record DfConnectionDescriptor
 {
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
     public string Name { get; init; } = "";
-
-    public RetailingBackend Backend { get; init; } = RetailingBackend.DocumentForge;
 
     /// <summary>Base URL — dfdb serve node (e.g. http://localhost:5001) or AeroBus (http://localhost:5080).</summary>
     public string Url { get; init; } = "";

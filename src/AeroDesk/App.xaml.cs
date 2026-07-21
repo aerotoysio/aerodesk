@@ -19,9 +19,7 @@ public partial class App : Application
 
         var workspace = new AeroDeskWorkspace();
         SeedFirstRunConnection(workspace);
-
-        // `--offline` jumps straight into an in-memory demo sale (dev/demo shortcut).
-        MainWindow = new MainWindow(workspace, offlineDemo: e.Args.Contains("--offline"));
+        MainWindow = new MainWindow(workspace);
         MainWindow.Show();
     }
 
@@ -34,7 +32,6 @@ public partial class App : Application
         workspace.UpsertConnection(new DfConnectionDescriptor
         {
             Name = "AeroBus (localhost:5080)",
-            Backend = RetailingBackend.AeroBus,
             Url = "http://localhost:5080",
             KeycloakAuthority = "https://auth.demo.aerotoys.io",
             KeycloakRealm = "aerotoys",
