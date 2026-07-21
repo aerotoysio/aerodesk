@@ -9,8 +9,9 @@ A Windows desktop application for airline **agents** — two workbenches in one 
 The workbench shows the sections a connected backend supports (and, in future, the agent's role), so a
 call-centre agent and a gate agent share one installed app but see the tools relevant to them.
 
-AeroDesk uses **[DocumentForge](https://github.com/aerotoysio/documentforge)** as its retailing order
-store and **AeroBus** as the operational middle layer. It is a standalone product by aerotoysio, and
+AeroDesk runs entirely on **AeroBus** — every sale, order and departure-control action goes through
+the AeroBus API with one Keycloak agent login. There is no offline mode and no direct database
+access: connected to AeroBus, or dead in the water. It is a standalone product by aerotoysio, and
 shares the desktop architecture of DocumentForge Studio (WPF + AvalonDock + MVVM).
 
 See **[AERODESK_PLAN.md](AERODESK_PLAN.md)** for the full implementation plan and phase breakdown.
@@ -24,16 +25,15 @@ Planning / scaffolding. Phase 0 (solution scaffold + AvalonDock shell) is the fi
 - **WPF**, `net9.0-windows`, **MVVM** via CommunityToolkit.Mvvm.
 - **Dirkster.AvalonDock** docking workbench (nav tree + tabbed documents + status bar).
 - `AeroDesk` (WPF app) · `AeroDesk.Core` (models/services/settings, no WPF deps) · `AeroDesk.Core.Tests` (xUnit).
-- `IRetailingService` abstraction (DocumentForge HTTP · AeroBus · in-memory mock) for retailing.
-- `IOperationsService` abstraction (AeroBus `/operations` · in-memory mock) for departure control.
+- `IRetailingService` (AeroBus `/offer` + `/order`) for retailing.
+- `IOperationsService` (AeroBus `/operations`) for departure control.
 - Settings/secrets stored per-user under `%AppData%\AeroDesk` with DPAPI encryption.
 
 ## Departure Control (DCS)
 
 The departure-control workbench (`AeroDesk.Core.Operations`) drives AeroBus's `/operations` surface:
 list a station's departures for a day → open a flight → work the **passenger manifest** (check in,
-assign seat, board) → change flight status (**Start Boarding**, **Depart**). `InMemoryOperationsService`
-runs the whole loop offline (`--offline` / *Work Offline*) with no backend, so it demos immediately.
+assign seat, board) → change flight status (**Start Boarding**, **Depart**).
 
 **Auth — one Keycloak agent login for everything.** The agent signs in once (direct access grant
 against the realm AeroBus validates, client `aeroboard`) and that session drives **both** workbenches —
@@ -42,15 +42,6 @@ check-in, board and depart carries per-agent identity. Agent accounts are create
 organisation's admin in **AeroStudio** (Users page); Keycloak self-registration stays off
 (a self-register + approval queue is a noted follow-up). AeroBus grants the operational permissions
 (`operations.view` / `operations.manage`) to the `editor` and `org-admin` roles out of the box.
-
-The DocumentForge-direct retailing mode was retired from the UI — AeroBus is the backend
-(the offline in-memory demo remains for zero-backend use).
-
-## DocumentForge
-
-AeroDesk talks to a running `dfdb serve` node over REST (dev default `http://localhost:5001`) and
-persists offers/orders/passengers/payments as JSON documents in database `airline`. A bootstrap
-action seeds sample flight inventory so the app demos end to end on a fresh node.
 
 ## Payment & compliance
 

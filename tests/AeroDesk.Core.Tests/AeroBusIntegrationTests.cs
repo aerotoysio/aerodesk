@@ -42,7 +42,6 @@ public sealed class AeroBusIntegrationTests
             new DfConnectionDescriptor
             {
                 Name = "it",
-                Backend = RetailingBackend.AeroBus,
                 Url = AeroBusUrl!,
             },
             auth);

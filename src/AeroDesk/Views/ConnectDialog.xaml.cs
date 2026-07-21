@@ -9,9 +9,8 @@ namespace AeroDesk.Views;
 /// <summary>
 /// The agent sign-in: AeroBus URL + Keycloak (URL/realm/client) + agent
 /// email/password — ONE login for both workbenches (reservations and departure
-/// control) — or the offline in-memory demo. The saved list shows AeroBus
-/// connections only (the DocumentForge-direct mode was retired; old saved DF
-/// entries are ignored). The password is stored DPAPI-encrypted when saving.
+/// control). AeroBus is the only backend: no offline mode, no direct database
+/// access. The password is stored DPAPI-encrypted when saving.
 /// </summary>
 public partial class ConnectDialog : Window
 {
@@ -25,26 +24,16 @@ public partial class ConnectDialog : Window
         _workspace = workspace;
         InitializeComponent();
 
-        var saved = _workspace.Connections.Where(c => c.Backend == RetailingBackend.AeroBus).ToList();
+        var saved = _workspace.Connections.ToList();
         SavedCombo.ItemsSource = saved;
         if (saved.Count > 0)
             SavedCombo.SelectedIndex = 0;
-
-        AeroBusRadio.Checked += (_, _) => SyncPanels();
-        OfflineRadio.Checked += (_, _) => SyncPanels();
-    }
-
-    private void SyncPanels()
-    {
-        if (AeroBusPanel is null) return;
-        AeroBusPanel.Visibility = AeroBusRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnSavedSelected(object sender, SelectionChangedEventArgs e)
     {
         if (SavedCombo.SelectedItem is not DfConnectionDescriptor conn) return;
         _selectedId = conn.Id;
-        AeroBusRadio.IsChecked = true;
         NameBox.Text = conn.Name;
         AbUrlBox.Text = conn.Url;
         AbEmailBox.Text = conn.Email;
@@ -56,13 +45,6 @@ public partial class ConnectDialog : Window
 
     private void OnConnect(object sender, RoutedEventArgs e)
     {
-        if (OfflineRadio.IsChecked == true)
-        {
-            Result = new ConnectRequest(new DfConnectionDescriptor { Name = "Offline demo" }, null, Save: false, Offline: true);
-            DialogResult = true;
-            return;
-        }
-
         var url = AbUrlBox.Text.Trim();
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
         {
@@ -89,7 +71,6 @@ public partial class ConnectDialog : Window
         var descriptor = (existing ?? new DfConnectionDescriptor()) with
         {
             Name = name,
-            Backend = RetailingBackend.AeroBus,
             Url = url,
             Email = AbEmailBox.Text.Trim(),
             KeycloakAuthority = kcUrl,
@@ -98,7 +79,7 @@ public partial class ConnectDialog : Window
         };
 
         Result = new ConnectRequest(descriptor, AbPasswordBox.Password,
-            Save: AbSaveCheck.IsChecked == true, Offline: false);
+            Save: AbSaveCheck.IsChecked == true);
         DialogResult = true;
     }
 

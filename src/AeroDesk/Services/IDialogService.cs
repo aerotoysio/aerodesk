@@ -3,7 +3,7 @@ using AeroDesk.Core.Connections;
 namespace AeroDesk.Services;
 
 /// <summary>What the Connect dialog hands back: where, credentials, and whether to persist.</summary>
-public sealed record ConnectRequest(DfConnectionDescriptor Descriptor, string? ApiKey, bool Save, bool Offline);
+public sealed record ConnectRequest(DfConnectionDescriptor Descriptor, string? ApiKey, bool Save);
 
 /// <summary>UI seam so view models never touch WPF dialogs directly.</summary>
 public interface IDialogService
